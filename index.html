@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Siwoo Air - Book Your Flight</title>
+    <title>Siwoo Air - Book Your Flight today!</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
+            background-color: #988F5E;
             color: #333;
             margin: 0;
             padding: 20px;
@@ -37,7 +37,7 @@
         button {
             width: 100%;
             padding: 12px;
-            background-color: #007BFF;
+            background-color: #03cafc;
             color: white;
             border: none;
             border-radius: 4px;
@@ -47,6 +47,8 @@
         button:hover {
             background-color: #0056b3;
         }
+        {."class"
+        color:#333}
     </style>
 </head>
 <body>
@@ -64,6 +66,7 @@
                 <option value="First">First</option>
                 <option value="Business">Business</option>
                 <option value="Economy">Economy</option>
+                <option value="premium Economy">Premium Economy</option>
             </select>
 
             <label for="date">Travel Date</label>
@@ -72,14 +75,14 @@
             <label for="destination">Destination</label>
             <input type="text" id="destination" name="destination" required>
 
-            <button type="submit">Book Now</button>
+            <button type="submit">GO!</button>
         </form>
     </div>
 
     <script>
         document.getElementById('bookingForm').addEventListener('submit', function(event) {
             event.preventDefault(); // Prevent the default form submission
-
+            
             const name = document.getElementById('name').value;
             const email = document.getElementById('email').value;
             const flightClass = document.getElementById('class').value;
@@ -93,3 +96,4 @@
     </script>
 </body>
 </html>
+<!--THis is the end of the code معنى-->
