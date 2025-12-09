@@ -280,7 +280,8 @@
     /* Overlays: questions */
     #choiceOverlay,
     #choiceOverlay2,
-    #choiceOverlayNo {
+    #choiceOverlayNo,
+    #choiceOverlayUpdate {
       position: absolute;
       inset: 0;
       display: none;
@@ -299,13 +300,15 @@
 
     #choiceOverlay.visible,
     #choiceOverlay2.visible,
-    #choiceOverlayNo.visible {
+    #choiceOverlayNo.visible,
+    #choiceOverlayUpdate.visible {
       display: flex;
     }
 
     #choicePrompt,
     #choicePrompt2,
-    #choicePromptNo {
+    #choicePromptNo,
+    #choicePromptUpdate {
       font-size: 13px;
       letter-spacing: 0.28em;
       text-transform: uppercase;
@@ -440,6 +443,92 @@
       box-shadow:
         0 0 10px rgba(0, 255, 120, 0.6),
         0 0 18px rgba(0, 247, 255, 0.5);
+    }
+
+    /* Update fake full-screen */
+    #updateScreen {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      color: #fff;
+      z-index: 9;
+      font-family: system, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #updateScreen.visible {
+      display: flex;
+    }
+
+    #updateContent {
+      text-align: center;
+      max-width: 420px;
+      padding: 20px;
+    }
+
+    .win-update-title {
+      font-size: 20px;
+      margin-bottom: 14px;
+    }
+
+    .win-update-sub {
+      font-size: 13px;
+      margin-bottom: 16px;
+      color: #d0e6ff;
+    }
+
+    .win-bar {
+      width: 260px;
+      height: 14px;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.4);
+      margin: 0 auto 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+    }
+
+    .win-bar-inner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #57b0ff, #b5e7ff);
+      transition: width 0.1s linear;
+    }
+
+    .win-percent {
+      font-size: 12px;
+      color: #e0efff;
+    }
+
+    .ios-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: 2px solid #fff;
+      margin: 0 auto 20px;
+    }
+
+    .ios-bar {
+      width: 200px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      margin: 0 auto;
+      overflow: hidden;
+    }
+
+    .ios-bar-inner {
+      height: 100%;
+      width: 0%;
+      background: #fff;
+      transition: width 0.1s linear;
+    }
+
+    .ios-update-text {
+      margin-top: 16px;
+      font-size: 13px;
+      color: #ddd;
     }
 
     /* Admin login */
@@ -607,6 +696,20 @@
         <button class="choice-btn" id="noBtnNo">NO</button>
       </div>
     </div>
+
+    <!-- Third YES/NO question: Update -->
+    <div id="choiceOverlayUpdate">
+      <div id="choicePromptUpdate">INSTALL SYSTEM UPDATE? (YES / NO)</div>
+      <div>
+        <button class="choice-btn" id="yesBtnUpdate">YES</button>
+        <button class="choice-btn" id="noBtnUpdate">NO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fake update full-screen -->
+  <div id="updateScreen">
+    <div id="updateContent"></div>
   </div>
 
   <!-- Ending / reveal screen -->
@@ -631,6 +734,7 @@
   <div id="adminPanel">
     <div class="adminTitle">ADMIN PANEL</div>
     <button class="adminBtn" id="btnAdminLogout">Log out admin</button>
+    <button class="adminBtn" id="btnChangePass">Change admin password</button>
     <button class="adminBtn" id="btnRestart">Restart console</button>
     <button class="adminBtn" id="btnForceYes">Force YES ending</button>
     <button class="adminBtn" id="btnForceNo">Force NO ending</button>
@@ -656,6 +760,9 @@
   </div>
 
   <script>
+    // ========= CONFIG =========
+    const UPDATE_DURATION = 6000; // 6 seconds for all update animations
+
     // ========= DOM ELEMENTS =========
     const term = document.getElementById("term");
     const screen = document.getElementById("screen");
@@ -664,19 +771,26 @@
     const choiceOverlay = document.getElementById("choiceOverlay");
     const choiceOverlay2 = document.getElementById("choiceOverlay2");
     const choiceOverlayNo = document.getElementById("choiceOverlayNo");
+    const choiceOverlayUpdate = document.getElementById("choiceOverlayUpdate");
+
     const yesBtn = document.getElementById("yesBtn");
     const noBtn = document.getElementById("noBtn");
     const yesBtn2 = document.getElementById("yesBtn2");
     const noBtn2 = document.getElementById("noBtn2");
     const yesBtnNo = document.getElementById("yesBtnNo");
     const noBtnNo = document.getElementById("noBtnNo");
+    const yesBtnUpdate = document.getElementById("yesBtnUpdate");
+    const noBtnUpdate = document.getElementById("noBtnUpdate");
+
     const choicePrompt2 = document.getElementById("choicePrompt2");
-    const choicePromptNo = document.getElementById("choicePromptNo");
 
     const revealTitle = document.getElementById("revealTitle");
     const revealText1 = document.getElementById("revealText1");
     const revealText2 = document.getElementById("revealText2");
     const revealCredit = document.getElementById("revealCredit");
+
+    const updateScreen = document.getElementById("updateScreen");
+    const updateContent = document.getElementById("updateContent");
 
     const adminLink = document.getElementById("adminLink");
     const adminLogin = document.getElementById("adminLogin");
@@ -685,6 +799,7 @@
     const adminPanel = document.getElementById("adminPanel");
 
     const btnAdminLogout = document.getElementById("btnAdminLogout");
+    const btnChangePass = document.getElementById("btnChangePass");
     const btnRestart = document.getElementById("btnRestart");
     const btnForceYes = document.getElementById("btnForceYes");
     const btnForceNo = document.getElementById("btnForceNo");
@@ -832,8 +947,8 @@
     let baseLineIndex = 0;
     let baseCharIndex = 0;
     let choiceMade = false;
-    let secondChoiceMade = false;   // Q2 (YES path)
-    let secondChoiceMadeNo = false; // Q2 (NO path)
+    let secondChoiceMade = false;    // Q2 (YES path)
+    let secondChoiceMadeNo = false;  // Q2 (NO path)
     let branchStarted = false;
     let cancelAllTyping = false;
     let alertMode = false;
@@ -854,6 +969,12 @@
     // Shell state
     let commandMode = false;
     let cwd = "/";
+
+    // Admin password (changeable)
+    let adminPassword = "78717";
+
+    // For update -> reveal mapping
+    let pendingRevealMode = "overrideNo";
 
     const fsTree = {
       "/": ["system", "logs", "user"],
@@ -965,9 +1086,11 @@
     }
 
     function applyJamState() {
-      [yesBtn, noBtn, yesBtn2, noBtn2, yesBtnNo, noBtnNo].forEach((btn) => {
-        if (btn) btn.disabled = jammed;
-      });
+      [yesBtn, noBtn, yesBtn2, noBtn2, yesBtnNo, noBtnNo, yesBtnUpdate, noBtnUpdate].forEach(
+        (btn) => {
+          if (btn) btn.disabled = jammed;
+        }
+      );
     }
 
     function showChoice() {
@@ -1095,6 +1218,107 @@
       revealCredit.textContent = "Made by Siwoo";
     }
 
+    // ========= UPDATE PROMPT + FAKE UPDATE =========
+    function showUpdatePrompt(mode) {
+      pendingRevealMode = mode;
+      choiceOverlayUpdate.classList.add("visible");
+      applyJamState();
+    }
+
+    function handleUpdateChoice(answer) {
+      choiceOverlayUpdate.classList.remove("visible");
+      if (answer === "yes") {
+        showBlackUpdateThenReveal();
+      } else {
+        showFakeUpdateThenReveal();
+      }
+    }
+
+    function showBlackUpdateThenReveal() {
+      updateScreen.style.background = "#000";
+      updateContent.innerHTML = "";
+      updateScreen.classList.add("visible");
+
+      setTimeout(() => {
+        updateScreen.classList.remove("visible");
+        showReveal(pendingRevealMode);
+      }, UPDATE_DURATION);
+    }
+
+    function showFakeUpdateThenReveal() {
+      updateScreen.classList.add("visible");
+
+      if (deviceType === "iOS DEVICE") {
+        // iOS 7–style
+        updateScreen.style.background = "#000";
+        updateContent.innerHTML = `
+          <div>
+            <div class="ios-logo"></div>
+            <div class="ios-bar">
+              <div class="ios-bar-inner" id="updateBarInner"></div>
+            </div>
+            <div class="ios-update-text">Installing iOS 7...</div>
+          </div>
+        `;
+      } else {
+        // Windows 7–style
+        updateScreen.style.background =
+          "radial-gradient(circle at top, #001738 0, #000410 70%)";
+        updateContent.innerHTML = `
+          <div>
+            <div class="win-update-title">Configuring Windows updates</div>
+            <div class="win-update-sub">Do not turn off your computer.</div>
+            <div class="win-bar">
+              <div class="win-bar-inner" id="updateBarInner"></div>
+            </div>
+            <div class="win-percent" id="updatePercent">0%</div>
+            <div class="win-update-sub" style="margin-top:10px; opacity:0.8;">
+              Installing update 3 of 17...
+            </div>
+          </div>
+        `;
+      }
+
+      const barInner = document.getElementById("updateBarInner");
+      const percentEl = document.getElementById("updatePercent");
+
+      const start = performance.now();
+
+      function easeInOut(t) {
+        return t < 0.5
+          ? 2 * t * t
+          : -1 + (4 - 2 * t) * t;
+      }
+
+      function step(now) {
+        const elapsed = now - start;
+        let ratio = Math.min(1, elapsed / UPDATE_DURATION);
+        const eased = easeInOut(ratio);
+        const progress = Math.round(eased * 100);
+
+        if (barInner) {
+          barInner.style.width = progress + "%";
+        }
+        if (percentEl) {
+          percentEl.textContent = progress + "%";
+        }
+
+        if (elapsed < UPDATE_DURATION) {
+          requestAnimationFrame(step);
+        } else {
+          if (barInner) barInner.style.width = "100%";
+          if (percentEl) percentEl.textContent = "100%";
+          updateScreen.classList.remove("visible");
+          showReveal(pendingRevealMode);
+        }
+      }
+
+      requestAnimationFrame(step);
+    }
+
+    yesBtnUpdate.addEventListener("click", () => handleUpdateChoice("yes"));
+    noBtnUpdate.addEventListener("click", () => handleUpdateChoice("no"));
+
     // ========= QUESTION HANDLERS =========
     function handleChoice(answer) {
       if (choiceMade || jammed) return;
@@ -1112,7 +1336,7 @@
         if (answer === "yes") {
           startCommandMode();
         } else {
-          showReveal("overrideNo");
+          showUpdatePrompt("overrideNo");
         }
       } else {
         // q2Mode === "wipe"
@@ -1122,13 +1346,13 @@
             "[ERASE] Tagging access logs as wiped* (simulation only).",
             "muted"
           );
-          setTimeout(() => showReveal("wipeYes"), 600);
+          setTimeout(() => showUpdatePrompt("wipeYes"), 600);
         } else {
           printLineToTerm(
             "[LOG] User declined log purge; preserving entries.",
             "muted"
           );
-          setTimeout(() => showReveal("wipeNo"), 600);
+          setTimeout(() => showUpdatePrompt("wipeNo"), 600);
         }
       }
     }
@@ -1140,10 +1364,10 @@
 
       if (answer === "yes") {
         printLineToTerm("[SAFE] User enabled safe mode.", "ok");
-        setTimeout(() => showReveal("safeYes"), 600);
+        setTimeout(() => showUpdatePrompt("safeYes"), 600);
       } else {
         printLineToTerm("[SAFE] User declined safe mode. Closing session.", "warn");
-        setTimeout(() => showReveal("safeNo"), 600);
+        setTimeout(() => showUpdatePrompt("safeNo"), 600);
       }
     }
 
@@ -1162,7 +1386,7 @@
     });
 
     adminSubmit.addEventListener("click", () => {
-      if (adminPass.value === "78717") {
+      if (adminPass.value === adminPassword) {
         adminLogin.style.display = "none";
         adminPanel.style.display = "flex";
       } else {
@@ -1179,6 +1403,22 @@
     }
 
     btnAdminLogout.addEventListener("click", adminLogout);
+
+    function changeAdminPassword() {
+      const newPass = prompt(
+        "Enter new admin passcode (it resets when you reload):",
+        adminPassword
+      );
+      if (newPass === null) return;
+      if (!newPass.trim()) {
+        alert("Password cannot be empty.");
+        return;
+      }
+      adminPassword = newPass;
+      alert("Admin password updated.");
+    }
+
+    btnChangePass.addEventListener("click", changeAdminPassword);
 
     // ========= HEADER / STATUS =========
     function updateHeader() {
@@ -1238,6 +1478,7 @@
       choiceOverlay.classList.remove("visible");
       choiceOverlay2.classList.remove("visible");
       choiceOverlayNo.classList.remove("visible");
+      choiceOverlayUpdate.classList.remove("visible");
       if (!choiceMade) choiceMade = true;
       if (!branchStarted) {
         cancelAllTyping = false;
@@ -1248,7 +1489,7 @@
         }
       } else {
         if (mode === "yes") startCommandMode();
-        else showReveal("overrideNo");
+        else showUpdatePrompt("overrideNo");
       }
     }
 
@@ -1259,9 +1500,11 @@
       choiceOverlay.classList.remove("visible");
       choiceOverlay2.classList.remove("visible");
       choiceOverlayNo.classList.remove("visible");
+      choiceOverlayUpdate.classList.remove("visible");
       resetHeader();
       screen.style.display = "flex";
       reveal.classList.remove("visible");
+      updateScreen.classList.remove("visible");
       term.innerHTML = "";
       term.appendChild(cursor);
       baseLineIndex = 0;
@@ -1498,6 +1741,16 @@
       );
     }
 
+    function shellLogout() {
+      if (!commandMode) return;
+      commandMode = false;
+      cmdRow.style.display = "none";
+      cursor.style.display = "inline-block";
+      printLineToTerm("[SHELL] Session closed by user.", "warn");
+      // After leaving shell, ask about update
+      showUpdatePrompt("overrideYes");
+    }
+
     function handleCommand(line) {
       const parts = line.trim().split(/\s+/);
       if (!parts[0]) return;
@@ -1517,6 +1770,7 @@
         printLineToTerm("  cat <file>  - show fake file contents");
         printLineToTerm("  date, time  - show current date/time");
         printLineToTerm("  info        - show device info (with region/city/GPS)");
+        printLineToTerm("  exit, logout, quit - close shell session");
         printLineToTerm("");
         printLineToTerm(
           "All commands are simulated. No real files or data are changed.",
@@ -1539,6 +1793,8 @@
         printLineToTerm(d.toString());
       } else if (cmd === "info") {
         showDeviceInfoCommand();
+      } else if (cmd === "exit" || cmd === "logout" || cmd === "quit") {
+        shellLogout();
       } else {
         printLineToTerm(
           `Unknown command: ${cmd} (type "help" for commands)`,
