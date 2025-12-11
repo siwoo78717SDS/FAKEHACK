@@ -911,6 +911,9 @@
     const cmdPrompt = document.getElementById("cmdPrompt");
     const cmdInput = document.getElementById("cmdInput");
 
+    // Debug: confirm script loaded
+    console.log("ZeroPoint script loaded");
+
     // ========= FULLSCREEN HELPERS =========
     function requestFullscreen() {
       const el = document.documentElement;
@@ -2114,7 +2117,6 @@
       printLineToTerm("[ADMIN] Spoofed deviceType to " + deviceType, "muted");
     }
 
-    let heartbeatTimer = null;
     function toggleHeartbeat() {
       if (heartbeatTimer) {
         clearInterval(heartbeatTimer);
