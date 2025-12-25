@@ -3,7 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>React App</title>
+    <title>Cyber Terminal Simulator</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        background: radial-gradient(circle at top, #0a1b12 0, #030704 45%, #000 100%);
+      }
+      html, body, #root { height: 100%; width: 100%; }
+      @media print {
+        .no-print { display: none !important; }
+        body { background: #fff !important; }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
