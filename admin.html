@@ -1,0 +1,307 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>NotHack // Admin</title>
+    <link rel="stylesheet" href="/theme.css" />
+  </head>
+  <body>
+    <div id="screen">
+      <div id="header">
+        <div id="title">NOTHACK // ADMIN</div>
+        <div id="subtitle">pending facts • roles • ban requests</div>
+        <div id="statusBar">
+          <span class="status-pill info" id="mePill">Checking login…</span>
+          <a class="status-pill ok" href="/index.html">HOME</a>
+          <a class="status-pill ok" href="/mod.html">MOD</a>
+          <button class="small danger" id="logoutBtn">Logout</button>
+        </div>
+      </div>
+
+      <div id="term">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <button class="small" data-tab="facts">Pending Facts</button>
+          <button class="small" data-tab="users">Users / Roles</button>
+          <button class="small" data-tab="bans">Ban Requests</button>
+          <span class="muted" id="statusMsg"></span>
+        </div>
+
+        <hr />
+
+        <div id="tab-facts"></div>
+        <div id="tab-users" style="display:none;"></div>
+        <div id="tab-bans" style="display:none;"></div>
+      </div>
+    </div>
+
+    <script>
+      const statusMsg = document.getElementById("statusMsg");
+
+      function escapeHtml(s) {
+        return String(s)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "<")
+          .replaceAll(">", ">")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+      function fmtTime(ms) {
+        if (!ms) return "-";
+        try { return new Date(ms).toLocaleString(); } catch { return String(ms); }
+      }
+
+      async function api(path, opts = {}) {
+        const r = await fetch(path, {
+          credentials: "include",
+          headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
+          ...opts
+        });
+
+        if (r.status === 401) {
+          location.href = "/login.html?next=" + encodeURIComponent(location.pathname);
+          throw new Error("Not logged in");
+        }
+
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 403) throw new Error(data.error || "Forbidden");
+        if (!r.ok || data.ok === false) throw new Error(data.error || ("Request failed: " + r.status));
+        return data;
+      }
+
+      async function guardAdmin() {
+        const me = await api("/api/auth/me");
+        if (!me.loggedIn) {
+          location.href = "/login.html?next=/admin.html";
+          return false;
+        }
+        if (me.user.role !== "admin") {
+          document.getElementById("mePill").textContent = "FORBIDDEN (admin only)";
+          setTimeout(() => (location.href = "/index.html"), 900);
+          return false;
+        }
+        document.getElementById("mePill").textContent =
+          `Logged in: ${me.user.fullName} (@${me.user.username}) [${me.user.role}]`;
+        return true;
+      }
+
+      function showTab(name) {
+        document.getElementById("tab-facts").style.display = (name === "facts") ? "block" : "none";
+        document.getElementById("tab-users").style.display = (name === "users") ? "block" : "none";
+        document.getElementById("tab-bans").style.display = (name === "bans") ? "block" : "none";
+      }
+
+      async function loadFacts() {
+        statusMsg.textContent = "Loading pending facts…";
+        const wrap = document.getElementById("tab-facts");
+        const data = await api("/api/admin/facts/pending");
+        const facts = data.pending || [];
+
+        if (!facts.length) {
+          wrap.innerHTML = `<div class="muted">No pending facts 🎯</div>`;
+          statusMsg.textContent = "";
+          return;
+        }
+
+        wrap.innerHTML = `
+          <div class="sectionTitle">Pending Facts</div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:240px;">ID</th>
+                <th>Text</th>
+                <th style="width:190px;">Submitted</th>
+                <th style="width:260px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${facts.map(f => `
+                <tr>
+                  <td>${escapeHtml(f.id)}</td>
+                  <td>${escapeHtml(f.text || "")}</td>
+                  <td class="dim">${fmtTime(f.submittedAt)}</td>
+                  <td>
+                    <button class="small ok" data-approve="${f.id}">Approve</button>
+                    <button class="small danger" data-reject="${f.id}">Reject</button>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `;
+
+        wrap.querySelectorAll("[data-approve]").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-approve");
+            statusMsg.textContent = "Approving " + id + "…";
+            await api(`/api/admin/facts/${encodeURIComponent(id)}/approve`, { method: "POST", body: "{}" });
+            await loadFacts();
+            statusMsg.textContent = "Approved ✅";
+          });
+        });
+
+        wrap.querySelectorAll("[data-reject]").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-reject");
+            if (!confirm("Reject this fact?")) return;
+            statusMsg.textContent = "Rejecting " + id + "…";
+            await api(`/api/admin/facts/${encodeURIComponent(id)}/reject`, { method: "POST", body: "{}" });
+            await loadFacts();
+            statusMsg.textContent = "Rejected 🗑️";
+          });
+        });
+
+        statusMsg.textContent = "";
+      }
+
+      async function loadUsers() {
+        statusMsg.textContent = "Loading users…";
+        const wrap = document.getElementById("tab-users");
+        const data = await api("/api/admin/users");
+        const users = data.users || [];
+
+        wrap.innerHTML = `
+          <div class="sectionTitle">Users / Roles</div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:240px;">ID</th>
+                <th style="width:160px;">Username</th>
+                <th>Full name</th>
+                <th style="width:260px;">Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${users.map(u => `
+                <tr>
+                  <td>${escapeHtml(u.id)}</td>
+                  <td>${escapeHtml(u.username)}</td>
+                  <td>${escapeHtml(u.fullName)}</td>
+                  <td>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                      <select data-role="${u.id}" style="max-width:180px;">
+                        <option value="user" ${u.role==="user"?"selected":""}>user</option>
+                        <option value="mod" ${u.role==="mod"?"selected":""}>mod</option>
+                        <option value="admin" ${u.role==="admin"?"selected":""}>admin</option>
+                      </select>
+                      <button class="small" data-save="${u.id}">Save</button>
+                    </div>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `;
+
+        wrap.querySelectorAll("[data-save]").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-save");
+            const sel = wrap.querySelector(`[data-role="${CSS.escape(id)}"]`);
+            const role = sel.value;
+            statusMsg.textContent = `Saving role "${role}"…`;
+            await api(`/api/admin/users/${encodeURIComponent(id)}/role`, {
+              method: "PATCH",
+              body: JSON.stringify({ role })
+            });
+            statusMsg.textContent = "Saved ✅";
+            setTimeout(()=> statusMsg.textContent="", 800);
+          });
+        });
+
+        statusMsg.textContent = "";
+      }
+
+      async function loadBans() {
+        statusMsg.textContent = "Loading ban requests…";
+        const wrap = document.getElementById("tab-bans");
+        const data = await api("/api/admin/ban/requests");
+        const reqs = data.pending || [];
+
+        if (!reqs.length) {
+          wrap.innerHTML = `<div class="muted">No pending ban requests 🎯</div>`;
+          statusMsg.textContent = "";
+          return;
+        }
+
+        wrap.innerHTML = `
+          <div class="sectionTitle">Ban Requests</div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:240px;">Request ID</th>
+                <th style="width:90px;">Type</th>
+                <th style="width:240px;">User ID</th>
+                <th style="width:170px;">IP</th>
+                <th>Reason</th>
+                <th style="width:260px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${reqs.map(r => `
+                <tr>
+                  <td>${escapeHtml(r.id)}</td>
+                  <td>${escapeHtml(r.targetType || "-")}</td>
+                  <td>${escapeHtml(r.userId || "-")}</td>
+                  <td>${escapeHtml(r.ip || "-")}</td>
+                  <td>${escapeHtml(r.reason || "")}</td>
+                  <td>
+                    <button class="small ok" data-approveban="${r.id}">Approve</button>
+                    <button class="small danger" data-rejectban="${r.id}">Reject</button>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `;
+
+        wrap.querySelectorAll("[data-approveban]").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-approveban");
+            statusMsg.textContent = "Approving ban request " + id + "…";
+            await api(`/api/admin/ban/${encodeURIComponent(id)}/approve`, { method: "POST", body: "{}" });
+            await loadBans();
+            statusMsg.textContent = "Approved ✅";
+          });
+        });
+
+        wrap.querySelectorAll("[data-rejectban]").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const id = btn.getAttribute("data-rejectban");
+            if (!confirm("Reject this ban request?")) return;
+            statusMsg.textContent = "Rejecting ban request " + id + "…";
+            await api(`/api/admin/ban/${encodeURIComponent(id)}/reject`, { method: "POST", body: "{}" });
+            await loadBans();
+            statusMsg.textContent = "Rejected 🗑️";
+          });
+        });
+
+        statusMsg.textContent = "";
+      }
+
+      // tabs
+      document.querySelectorAll("[data-tab]").forEach(b => {
+        b.addEventListener("click", async () => {
+          const tab = b.getAttribute("data-tab");
+          showTab(tab);
+          if (tab === "facts") await loadFacts();
+          if (tab === "users") await loadUsers();
+          if (tab === "bans") await loadBans();
+        });
+      });
+
+      document.getElementById("logoutBtn").addEventListener("click", async () => {
+        await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+        location.href = "/login.html";
+      });
+
+      (async () => {
+        const ok = await guardAdmin();
+        if (!ok) return;
+        showTab("facts");
+        await loadFacts();
+      })().catch(e => {
+        statusMsg.textContent = e.message || String(e);
+      });
+    </script>
+  </body>
+</html>
