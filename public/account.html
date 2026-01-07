@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>My Account</title>
+  <style>
+    body{margin:0;background:#02060c;color:#eaffee;font-family:ui-monospace,Consolas,monospace}
+    .wrap{max-width:820px;margin:0 auto;padding:18px}
+    .top{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+    .card{border:1px solid rgba(0,255,160,.35);border-radius:14px;padding:14px;background:rgba(0,0,0,.35);margin:12px 0}
+    h1{margin:0 0 10px;letter-spacing:.14em;text-transform:uppercase;color:#9bffd4}
+    h2{margin:0 0 10px;font-size:14px;letter-spacing:.10em;text-transform:uppercase;color:#7df3ff}
+    input, textarea{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,247,255,.22);background:rgba(0,0,0,.35);color:#eaffee;outline:none;margin-top:10px}
+    button{padding:10px 14px;border-radius:12px;border:1px solid rgba(0,255,160,.55);background:rgba(0,0,0,.55);color:#eaffee;cursor:pointer;margin-top:10px}
+    .muted{opacity:.75}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row > *{flex:1;min-width:220px}
+    a{color:#9bffd4}
+    .pill{display:inline-block;padding:2px 10px;border-radius:999px;border:1px solid rgba(0,255,160,.55);background:rgba(0,0,0,.35)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>My Account</h1>
+      <div class="row" style="gap:8px">
+        <button id="homeBtn">Back to Home</button>
+        <button id="logoutBtn">Logout</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="muted">Logged in as:</div>
+      <div id="who" style="margin-top:8px"></div>
+      <div id="msg" class="muted" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h2>Change Username</h2>
+      <input id="newUsername" placeholder="New username (a-z 0-9 _)" />
+      <input id="curPwForUser" type="password" placeholder="Current password" />
+      <button id="saveUsername">Save username</button>
+    </div>
+
+    <div class="card">
+      <h2>Change Password</h2>
+      <input id="curPwForPw" type="password" placeholder="Current password" />
+      <input id="newPw" type="password" placeholder="New password (min 6 chars)" />
+      <button id="savePw">Save password</button>
+    </div>
+
+    <div class="card">
+      <h2>Role Application</h2>
+      <div class="muted" id="applyHint">Loading…</div>
+      <textarea id="reason" placeholder="Why should you be promoted? (optional)" rows="4"></textarea>
+      <button id="applyBtn">Apply</button>
+      <div class="muted" id="applyMsg" style="margin-top:10px"></div>
+
+      <hr style="margin:14px 0;border:none;border-top:1px solid rgba(255,255,255,.12)">
+
+      <div class="muted">Your recent requests:</div>
+      <div id="reqList" class="muted" style="margin-top:10px;white-space:pre-wrap"></div>
+    </div>
+  </div>
+
+<script>
+  async function api(path, opts = {}) {
+    const res = await fetch(path, {
+      ...opts,
+      headers: { "Content-Type": "application/json" },
+      credentials: "include"
+    });
+    const data = await res.json().catch(()=>({}));
+    return { res, data };
+  }
+
+  function setMsg(t){ document.getElementById("msg").textContent = t || ""; }
+  function setApplyMsg(t){ document.getElementById("applyMsg").textContent = t || ""; }
+
+  document.getElementById("homeBtn").onclick = () => location.href = "/";
+  document.getElementById("logoutBtn").onclick = async () => {
+    await api("/api/auth/logout", { method:"POST" });
+    location.href = "/login";
+  };
+
+  async function loadMe(){
+    const { data } = await api("/api/auth/me");
+    if (!data.loggedIn) { location.href="/login"; return null; }
+
+    const u = data.user;
+    document.getElementById("who").innerHTML =
+      "<div><b>"+u.fullName+"</b> <span class='pill'>@"+u.username+"</span></div>" +
+      "<div style='margin-top:6px' class='muted'>role: <b>"+u.role+"</b></div>" +
+      (u.email ? "<div style='margin-top:6px' class='muted'>email: "+u.email+"</div>" : "");
+
+    const applyHint = document.getElementById("applyHint");
+    if (u.role === "user") applyHint.textContent = "You can apply to become a MOD.";
+    else if (u.role === "mod") applyHint.textContent = "You can apply to become an ADMIN.";
+    else applyHint.textContent = "You are already an ADMIN (highest role).";
+
+    document.getElementById("applyBtn").disabled = (u.role === "admin");
+    return u;
+  }
+
+  async function loadMyRequests(){
+    const { data } = await api("/api/roles/my-requests");
+    if (!data.ok) return;
+    const lines = (data.requests || []).map(r => {
+      const when = new Date(r.createdAt).toLocaleString();
+      const dwhen = r.decidedAt ? new Date(r.decidedAt).toLocaleString() : "";
+      const note = r.decisionNote ? (" note: "+r.decisionNote) : "";
+      return `- ${when}  ${r.fromRole} -> ${r.toRole}  [${r.status}]` + (dwhen ? ` (decided ${dwhen})` : "") + note;
+    });
+    document.getElementById("reqList").textContent = lines.join("\n") || "(none yet)";
+  }
+
+  document.getElementById("saveUsername").onclick = async () => {
+    setMsg("…");
+    const username = document.getElementById("newUsername").value.trim();
+    const currentPassword = document.getElementById("curPwForUser").value;
+
+    const { res, data } = await api("/api/account/username", {
+      method:"PATCH",
+      body: JSON.stringify({ username, currentPassword })
+    });
+
+    if (!res.ok) { setMsg(data.error || data.message || "Failed"); return; }
+    setMsg("Username updated to @" + data.username);
+  };
+
+  document.getElementById("savePw").onclick = async () => {
+    setMsg("…");
+    const currentPassword = document.getElementById("curPwForPw").value;
+    const newPassword = document.getElementById("newPw").value;
+
+    const { res, data } = await api("/api/account/password", {
+      method:"PATCH",
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+
+    if (!res.ok) { setMsg(data.error || data.message || "Failed"); return; }
+    setMsg("Password updated.");
+  };
+
+  document.getElementById("applyBtn").onclick = async () => {
+    setApplyMsg("…");
+    const reason = document.getElementById("reason").value.trim();
+
+    const { res, data } = await api("/api/roles/request", {
+      method:"POST",
+      body: JSON.stringify({ reason })
+    });
+
+    if (!res.ok) { setApplyMsg(data.error || data.message || "Failed"); return; }
+    setApplyMsg("Request sent.");
+    document.getElementById("reason").value = "";
+    await loadMyRequests();
+  };
+
+  (async function init(){
+    await loadMe();
+    await loadMyRequests();
+  })();
+</script>
+</body>
+</html>
