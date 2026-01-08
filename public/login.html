@@ -1,75 +1,93 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Login</title>
-  <style>
-    body{margin:0;background:#02060c;color:#eaffee;font-family:ui-monospace,Consolas,monospace}
-    .wrap{max-width:520px;margin:0 auto;padding:18px}
-    .card{border:1px solid rgba(0,255,160,.35);border-radius:14px;padding:14px;background:rgba(0,0,0,.35);margin:12px 0}
-    h1{margin:0 0 10px;letter-spacing:.14em;text-transform:uppercase;color:#7df3ff}
-    input{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,247,255,.22);background:rgba(0,0,0,.35);color:#eaffee;outline:none;margin-top:10px}
-    button{padding:10px 14px;border-radius:12px;border:1px solid rgba(0,255,160,.55);background:rgba(0,0,0,.55);color:#eaffee;cursor:pointer;margin-top:10px;width:100%}
-    .muted{opacity:.75}
-    a{color:#9bffd4}
-  </style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Login • ZeroPoint</title>
+  <link rel="stylesheet" href="/app.css"/>
 </head>
 <body>
   <div class="wrap">
-    <h1>Login</h1>
-    <div class="card">
-      <div class="muted">Uses cookie session (<b>connect.sid</b>).</div>
-
-      <input id="id" placeholder="Username or Email" autocomplete="username" />
-      <input id="pw" type="password" placeholder="Password" autocomplete="current-password" />
-      <button id="btn">Login</button>
-
-      <div class="muted" style="margin-top:10px">
-        No account? <a href="/register">Register</a>
+    <div class="panel">
+      <div class="topbar">
+        <div class="brand">LOGIN</div>
+        <div class="pills">
+          <a class="pill" href="/">HOME</a>
+          <a class="pill primary" href="/register">REGISTER</a>
+        </div>
       </div>
-      <div class="muted" id="msg" style="margin-top:10px"></div>
+      <div class="formWrap">
+        <div class="card">
+          <h1>Login</h1>
+          <div id="msg" class="msg" style="display:none"></div>
+          <label>Username</label>
+          <input class="text" id="username" autocomplete="username" />
+          <label>Password</label>
+          <input class="text" id="password" type="password" autocomplete="current-password" />
+          <div class="row" style="margin-top:12px">
+            <button class="btn primary" id="loginSubmit" type="button">Login</button>
+            <button class="btn" id="toHome" type="button">Cancel</button>
+          </div>
+          <div class="msg warn" style="margin-top:12px">
+            Tip: admin users will be redirected to <b>/admin</b> after login.
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
 <script>
-  async function api(path, opts = {}) {
-    const res = await fetch(path, {
-      ...opts,
-      headers: { "Content-Type": "application/json" },
-      credentials: "include"
-    });
-    const data = await res.json().catch(()=>({}));
-    return { res, data };
+(() => {
+  const username = document.getElementById("username");
+  const password = document.getElementById("password");
+  const msg = document.getElementById("msg");
+  const loginSubmit = document.getElementById("loginSubmit");
+  const toHome = document.getElementById("toHome");
+  const next = new URLSearchParams(location.search).get("next") || "/";
+
+  function show(type, text) {
+    msg.style.display = "";
+    msg.className = "msg " + (type || "");
+    msg.textContent = text;
   }
 
-  (async function boot(){
-    const { data } = await api("/api/auth/me");
-    if (data && data.loggedIn) {
-      if (data.user && data.user.role === "admin") location.href = "/admin";
-      else location.href = "/";
-    }
-  })();
-
-  document.getElementById("btn").onclick = async () => {
-    const id = document.getElementById("id").value.trim();
-    const password = document.getElementById("pw").value;
-    const msg = document.getElementById("msg");
-    msg.textContent = "…";
-
-    const {res, data} = await api("/api/auth/login", {
-      method:"POST",
-      body:JSON.stringify({id, password})
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body)
     });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data.error || ("Request failed: " + res.status));
+    return data;
+  }
 
-    if(!res.ok){
-      msg.textContent = data.error || data.message || ("Login failed ("+res.status+")");
-      return;
+  async function me() {
+    const res = await fetch("/api/auth/me", { credentials: "include" });
+    return res.json();
+  }
+
+  loginSubmit.addEventListener("click", async () => {
+    try {
+      show("", "Logging in…");
+      const data = await api("/api/auth/login", { username: username.value, password: password.value });
+      const m = await me();
+      if (m.loggedIn && m.user && m.user.role === "admin") location.href = "/admin";
+      else location.href = next;
+    } catch (e) {
+      show("danger", e.message);
     }
+  });
 
-    if (data.role === "admin") location.href = "/admin";
-    else location.href = "/";
-  };
+  toHome.addEventListener("click", () => location.href = "/");
+
+  password.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") loginSubmit.click();
+  });
+
+  setTimeout(() => username.focus(), 50);
+})();
 </script>
 </body>
 </html>
