@@ -1,101 +1,156 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Moderator Dashboard</title>
-    <link rel="stylesheet" href="/app.css" />
-    <style>
-      .wrap { max-width: 900px; margin: 40px auto; padding: 0 16px; }
-      .card {
-        border: 1px solid rgba(255,255,255,0.12);
-        background: rgba(0,0,0,0.35);
-        border-radius: 14px;
-        padding: 16px;
-        margin-top: 14px;
-      }
-      .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-      .btn {
-        cursor: pointer;
-        border-radius: 10px;
-        padding: 10px 12px;
-        border: 1px solid rgba(255,255,255,0.16);
-        background: rgba(0,0,0,0.45);
-        color: #dff;
-        text-decoration: none;
-        display: inline-block;
-      }
-      .muted { opacity: 0.8; }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <h1>Moderator Dashboard</h1>
-      <div class="muted" id="meLine">Checking login…</div>
-
-      <div class="card">
-        <h3>Quick Links</h3>
-        <div class="row">
-          <a class="btn" href="/">Home</a>
-          <a class="btn" href="/account">My Page</a>
-          <button class="btn" id="logoutBtn">Logout</button>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Mod • ZeroPoint</title>
+  <link rel="stylesheet" href="/app.css"/>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <div class="topbar">
+        <div class="brand">MOD PANEL</div>
+        <div class="pills">
+          <a class="pill" href="/">HOME</a>
+          <a class="pill" href="/account">ACCOUNT</a>
+          <button class="pill danger" id="logoutBtn" type="button">LOGOUT</button>
         </div>
       </div>
 
-      <div class="card">
-        <h3>Tools (view-only)</h3>
-        <p class="muted">
-          Option A: moderators cannot approve role requests. Admins do that on /admin.
-        </p>
+      <div class="formWrap">
+        <div class="card">
+          <h1>Role Requests (View Only)</h1>
+          <div id="meBox" class="msg" style="display:none"></div>
 
-        <div class="row">
-          <button class="btn" id="pingBtn">Ping /api/auth/me</button>
+          <div class="row" style="margin-top:12px">
+            <select class="text" id="statusSelect">
+              <option value="pending">pending</option>
+              <option value="approved">approved</option>
+              <option value="rejected">rejected</option>
+              <option value="all">all</option>
+            </select>
+            <button class="btn primary" id="refreshBtn" type="button">Refresh</button>
+          </div>
+
+          <div id="msg" class="msg" style="display:none"></div>
+          <div class="msg warn" style="margin-top:10px">
+            Mods can only view. Admin approves/rejects on /admin.
+          </div>
         </div>
 
-        <pre class="card" id="out" style="white-space: pre-wrap">Output…</pre>
+        <div class="card">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>User</th>
+                <th>Requested</th>
+                <th>Status</th>
+                <th>Decision</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
       </div>
     </div>
+  </div>
 
-    <script>
-      const out = document.getElementById("out");
-      const meLine = document.getElementById("meLine");
+<script>
+(() => {
+  const logoutBtn = document.getElementById("logoutBtn");
+  const meBox = document.getElementById("meBox");
+  const msg = document.getElementById("msg");
+  const rows = document.getElementById("rows");
+  const statusSelect = document.getElementById("statusSelect");
+  const refreshBtn = document.getElementById("refreshBtn");
 
-      async function api(path, opts = {}) {
-        const res = await fetch(path, {
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          ...opts,
-        });
-        const ct = res.headers.get("content-type") || "";
-        const data = ct.includes("application/json") ? await res.json() : null;
-        return { res, data };
-      }
+  function show(type, text) {
+    msg.style.display = "";
+    msg.className = "msg " + (type || "");
+    msg.textContent = text;
+  }
 
-      async function init() {
-        const { res, data } = await api("/api/auth/me");
-        if (!res.ok || !data?.user) return (location.href = "/login");
+  function clearMsg() {
+    msg.style.display = "none";
+    msg.textContent = "";
+  }
 
-        const { username, role } = data.user;
-        if (role !== "mod" && role !== "admin") {
-          alert("You are not a moderator.");
-          return (location.href = "/");
-        }
+  async function getJSON(url, opts) {
+    const res = await fetch(url, { credentials: "include", ...(opts||{}) });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data.error || ("Request failed: " + res.status));
+    return data;
+  }
 
-        meLine.textContent = `Logged in as ${username} (role: ${role})`;
-        out.textContent = "Ready.";
-      }
+  async function postJSON(url, body) {
+    return getJSON(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    });
+  }
 
-      document.getElementById("logoutBtn").addEventListener("click", async () => {
-        await api("/api/auth/logout", { method: "POST", body: "{}" });
-        location.href = "/";
-      });
+  async function init() {
+    const me = await getJSON("/api/auth/me");
+    if (!me.loggedIn) { location.href = "/login?next=/mod"; return; }
+    if (me.user.role !== "mod" && me.user.role !== "admin") {
+      show("danger", "Forbidden: mod/admin only.");
+      return;
+    }
+    meBox.style.display = "";
+    meBox.className = "msg ok";
+    meBox.textContent = `Logged in as ${me.user.username} • role=${me.user.role}`;
+    await refresh();
+  }
 
-      document.getElementById("pingBtn").addEventListener("click", async () => {
-        const { res, data } = await api("/api/auth/me");
-        out.textContent = res.ok ? JSON.stringify(data, null, 2) : "API error: " + res.status;
-      });
+  async function refresh() {
+    clearMsg();
+    rows.innerHTML = "";
+    const status = statusSelect.value;
+    const q = status === "all" ? "" : ("?status=" + encodeURIComponent(status));
 
-      init();
-    </script>
-  </body>
+    // This endpoint needs a small server.js patch (I give it below)
+    const data = await getJSON("/api/mod/requests" + q);
+    const list = data.requests || [];
+
+    if (!list.length) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = '<td colspan="6" class="muted">No requests.</td>';
+      rows.appendChild(tr);
+      return;
+    }
+
+    for (const r of list) {
+      const tr = document.createElement("tr");
+      const decision = r.decidedAt ? (r.decidedBy + " @ " + r.decidedAt) : "-";
+      const reason = r.reason ? (" (" + r.reason + ")") : "";
+      const statusBadge = `<span class="badge">${r.status}</span>`;
+
+      tr.innerHTML = `
+        <td>${r.createdAt}</td>
+        <td>${r.usernameAtTime || r.userId}</td>
+        <td>${r.requestedRole}</td>
+        <td>${statusBadge}</td>
+        <td>${decision}${reason}</td>
+        <td><span class="muted">—</span></td>
+      `;
+      rows.appendChild(tr);
+    }
+  }
+
+  refreshBtn.addEventListener("click", () => refresh().catch(e => show("danger", e.message)));
+
+  logoutBtn.addEventListener("click", async () => {
+    try { await postJSON("/api/auth/logout", {}); } catch {}
+    location.href = "/";
+  });
+
+  init().catch(e => show("danger", e.message));
+  setInterval(() => refresh().catch(()=>{}), 10000);
+})();
+</script>
+</body>
 </html>
