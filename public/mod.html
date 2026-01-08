@@ -1,172 +1,101 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Mod</title>
-  <style>
-    body{margin:0;background:#02060c;color:#eaffee;font-family:ui-monospace,Consolas,monospace}
-    .wrap{max-width:1000px;margin:0 auto;padding:18px}
-    .card{border:1px solid rgba(0,255,160,.35);border-radius:14px;padding:14px;background:rgba(0,0,0,.35);margin:12px 0}
-    h1{margin:0 0 8px;letter-spacing:.14em;text-transform:uppercase;color:#9bffd4}
-    h2{margin:0 0 10px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#7df3ff}
-    input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(0,247,255,.22);background:rgba(0,0,0,.35);color:#eaffee;outline:none}
-    button{padding:10px 14px;border-radius:12px;border:1px solid rgba(0,255,160,.55);background:rgba(0,0,0,.55);color:#eaffee;cursor:pointer}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .pill{padding:4px 10px;border-radius:999px;border:1px solid rgba(0,247,255,.35);font-size:12px}
-    .right{margin-left:auto}
-    .muted{opacity:.75}
-    pre{white-space:pre-wrap;margin:0}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="row">
-      <h1>Mod Panel</h1>
-      <span class="pill" id="authPill">auth: checking…</span>
-      <button class="right" onclick="location.href='/'">Home</button>
-      <button id="logoutBtn">Logout</button>
-    </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Moderator Dashboard</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      .wrap { max-width: 900px; margin: 40px auto; padding: 0 16px; }
+      .card {
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(0,0,0,0.35);
+        border-radius: 14px;
+        padding: 16px;
+        margin-top: 14px;
+      }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+      .btn {
+        cursor: pointer;
+        border-radius: 10px;
+        padding: 10px 12px;
+        border: 1px solid rgba(255,255,255,0.16);
+        background: rgba(0,0,0,0.45);
+        color: #dff;
+        text-decoration: none;
+        display: inline-block;
+      }
+      .muted { opacity: 0.8; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Moderator Dashboard</h1>
+      <div class="muted" id="meLine">Checking login…</div>
 
-    <div class="card">
-      <h2>Report a user</h2>
-      <input id="reportTarget" placeholder="Target username (or user id)" />
-      <textarea id="reportReason" rows="3" placeholder="Reason…"></textarea>
-      <div class="row" style="margin-top:10px">
-        <button id="reportBtn">Submit report</button>
+      <div class="card">
+        <h3>Quick Links</h3>
+        <div class="row">
+          <a class="btn" href="/">Home</a>
+          <a class="btn" href="/account">My Page</a>
+          <button class="btn" id="logoutBtn">Logout</button>
+        </div>
       </div>
-      <div class="muted" style="margin-top:8px">
-        Reports go into the admin audit system.
-      </div>
-    </div>
 
-    <div class="card">
-      <h2>Warn a user (by username)</h2>
-      <input id="warnTarget" placeholder="Target username" />
-      <input id="warnMsg" placeholder="Warning message" />
-      <button id="warnBtn" style="margin-top:10px">Send warning</button>
-    </div>
+      <div class="card">
+        <h3>Tools (view-only)</h3>
+        <p class="muted">
+          Option A: moderators cannot approve role requests. Admins do that on /admin.
+        </p>
 
-    <div class="card">
-      <h2>Mute a user (by username)</h2>
-      <input id="muteTarget" placeholder="Target username" />
-      <input id="muteMinutes" type="number" min="1" step="1" placeholder="Minutes (e.g. 10)" />
-      <button id="muteBtn" style="margin-top:10px">Mute</button>
-      <div class="muted" style="margin-top:8px">
-        Muted users can still load pages, but you can use this later to block chat/post APIs.
-      </div>
-    </div>
+        <div class="row">
+          <button class="btn" id="pingBtn">Ping /api/auth/me</button>
+        </div>
 
-    <div class="card">
-      <h2>Broadcast mod notice</h2>
-      <input id="modBroadcastMsg" placeholder="Message to everyone online…" />
-      <button id="modBroadcastBtn" style="margin-top:10px">Broadcast</button>
-    </div>
-
-    <div class="card">
-      <h2>Apply for admin</h2>
-      <textarea id="applyMsg" rows="3" placeholder="Why should you be admin?"></textarea>
-      <button id="applyBtn" style="margin-top:10px">Apply</button>
-      <div class="muted" style="margin-top:8px">
-        Normal users apply for mod on the home page (API: /api/user/apply-mod).
+        <pre class="card" id="out" style="white-space: pre-wrap">Output…</pre>
       </div>
     </div>
 
-    <div class="card">
-      <h2>Log</h2>
-      <pre id="log" class="muted">Ready.</pre>
-    </div>
-  </div>
+    <script>
+      const out = document.getElementById("out");
+      const meLine = document.getElementById("meLine");
 
-<script>
-  const authPill = document.getElementById("authPill");
-  const logoutBtn = document.getElementById("logoutBtn");
-  const logEl = document.getElementById("log");
+      async function api(path, opts = {}) {
+        const res = await fetch(path, {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          ...opts,
+        });
+        const ct = res.headers.get("content-type") || "";
+        const data = ct.includes("application/json") ? await res.json() : null;
+        return { res, data };
+      }
 
-  function log(line){
-    const t = new Date().toLocaleTimeString();
-    logEl.textContent = `[${t}] ${line}\n` + logEl.textContent;
-  }
+      async function init() {
+        const { res, data } = await api("/api/auth/me");
+        if (!res.ok || !data?.user) return (location.href = "/login");
 
-  async function api(path, opts = {}) {
-    const res = await fetch(path, {
-      ...opts,
-      headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
-      credentials: "include"
-    });
-    const data = await res.json().catch(()=>({}));
-    return { res, data };
-  }
+        const { username, role } = data.user;
+        if (role !== "mod" && role !== "admin") {
+          alert("You are not a moderator.");
+          return (location.href = "/");
+        }
 
-  function setAuth(ok, txt){
-    authPill.textContent = txt;
-    authPill.style.borderColor = ok ? "rgba(48,255,155,.6)" : "rgba(255,180,0,.6)";
-    authPill.style.color = ok ? "#9bffd4" : "#ffd580";
-  }
+        meLine.textContent = `Logged in as ${username} (role: ${role})`;
+        out.textContent = "Ready.";
+      }
 
-  async function requireModOrAdmin(){
-    const {res, data} = await api("/api/me");
-    if(!res.ok){ location.href="/login"; return null; }
-    if(data.role !== "mod" && data.role !== "admin"){
-      setAuth(false, "auth: forbidden");
-      document.body.innerHTML = "<pre style='padding:18px;color:#ff4c4c'>403 Forbidden (mod/admin only)</pre>";
-      return null;
-    }
-    setAuth(true, `auth: ${data.role} (${data.username})`);
-    return data;
-  }
+      document.getElementById("logoutBtn").addEventListener("click", async () => {
+        await api("/api/auth/logout", { method: "POST", body: "{}" });
+        location.href = "/";
+      });
 
-  document.getElementById("reportBtn").onclick = async () => {
-    const target = document.getElementById("reportTarget").value.trim();
-    const reason = document.getElementById("reportReason").value.trim();
-    if(!target || !reason) return alert("Fill target + reason");
-    const {res, data} = await api("/api/mod/report", {method:"POST", body:JSON.stringify({target, reason})});
-    if(!res.ok) return alert(data.message || `Failed (${res.status})`);
-    log("Report submitted: " + target);
-  };
+      document.getElementById("pingBtn").addEventListener("click", async () => {
+        const { res, data } = await api("/api/auth/me");
+        out.textContent = res.ok ? JSON.stringify(data, null, 2) : "API error: " + res.status;
+      });
 
-  document.getElementById("warnBtn").onclick = async () => {
-    const target = document.getElementById("warnTarget").value.trim();
-    const message = document.getElementById("warnMsg").value.trim();
-    if(!target || !message) return alert("Fill target + message");
-    const {res, data} = await api("/api/mod/warn", {method:"POST", body:JSON.stringify({target, message})});
-    if(!res.ok) return alert(data.message || `Failed (${res.status})`);
-    log("Warned: " + target);
-  };
-
-  document.getElementById("muteBtn").onclick = async () => {
-    const target = document.getElementById("muteTarget").value.trim();
-    const minutes = Number(document.getElementById("muteMinutes").value);
-    if(!target || !Number.isFinite(minutes) || minutes <= 0) return alert("Fill target + minutes");
-    const {res, data} = await api("/api/mod/mute", {method:"POST", body:JSON.stringify({target, minutes})});
-    if(!res.ok) return alert(data.message || `Failed (${res.status})`);
-    log(`Muted: ${target} for ${minutes}m`);
-  };
-
-  document.getElementById("modBroadcastBtn").onclick = async () => {
-    const message = document.getElementById("modBroadcastMsg").value.trim();
-    if(!message) return;
-    const {res, data} = await api("/api/mod/broadcast", {method:"POST", body:JSON.stringify({message})});
-    if(!res.ok) return alert(data.message || `Failed (${res.status})`);
-    log("Broadcast sent.");
-  };
-
-  document.getElementById("applyBtn").onclick = async () => {
-    const message = document.getElementById("applyMsg").value.trim();
-    const {res, data} = await api("/api/mod/apply-admin", {method:"POST", body:JSON.stringify({message})});
-    if(!res.ok) return alert(data.message || `Failed (${res.status})`);
-    log("Applied for admin.");
-  };
-
-  logoutBtn.onclick = async () => {
-    await api("/api/logout",{method:"POST"});
-    location.href="/login";
-  };
-
-  (async () => {
-    const ok = await requireModOrAdmin();
-    if(ok) log("Ready.");
-  })();
-</script>
-</body>
+      init();
+    </script>
+  </body>
 </html>
