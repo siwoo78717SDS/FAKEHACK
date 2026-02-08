@@ -1,10 +1,19 @@
 {
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://nothack-backend.onrender.com/api/:path*"
+    },
+
+    { "source": "/", "destination": "/index.html" },
+
     { "source": "/login", "destination": "/login.html" },
     { "source": "/register", "destination": "/register.html" },
+
     { "source": "/admin", "destination": "/admin.html" },
     { "source": "/mod", "destination": "/mod.html" },
 
-    { "source": "/api/:path*", "destination": "https://nothack-backend.onrender.com/api/:path*" }
+    { "source": "/groups", "destination": "/groups.html" },
+    { "source": "/users", "destination": "/users.html" }
   ]
 }
