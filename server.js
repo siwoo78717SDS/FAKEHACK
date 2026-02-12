@@ -9,7 +9,7 @@ const helmet = require("helmet");
 const mongoSanitize = require("express-mongo-sanitize");
 
 const User = require("./models/User");
-const IpBan = require("./models/IpBan"); // NEW: IP ban model
+const IpBan = require("./models/IpBan"); // IP ban model
 
 const authRoutes = require("./routes/auth");
 const profileRoutes = require("./routes/profile");
@@ -24,7 +24,7 @@ const announcementsRoutes = require("./routes/announcements");
 const transactionsRoutes = require("./routes/transactions");
 const adminRoutes = require("./routes/admin");
 
-const { getClientIp } = require("./routes/_helpers"); // use shared helper
+const { getClientIp } = require("./routes/_helpers"); // shared helper
 
 const app = express();
 
@@ -38,7 +38,7 @@ const SESSION_SECRET = process.env.SESSION_SECRET || "dev-secret-change-me";
 const IS_PROD = process.env.NODE_ENV === "production";
 
 /**
- * NEW: Global IP-ban check.
+ * Global IP-ban check.
  * Blocks any request from an IP that exists in IpBan and is not expired.
  */
 async function checkIpBan(req, res, next) {
@@ -57,8 +57,9 @@ async function checkIpBan(req, res, next) {
     return res.status(403).json({ error: "This IP is banned." });
   } catch (err) {
     console.error("checkIpBan error:", err.message);
-    // don't break the whole app because of a check failure
-    return res.status(500).json({ error: "Server error" });
+    // IMPORTANT: don't send a 500 JSON here, just skip the check
+    // so we don't break login/register with "bad JSON" if something fails
+    return next();
   }
 }
 
@@ -96,7 +97,7 @@ async function start() {
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true }));
 
-  // NEW: IP-ban check BEFORE sessions & routes
+  // IP-ban check BEFORE sessions & routes
   app.use(checkIpBan);
 
   // sessions
@@ -139,7 +140,9 @@ async function start() {
               lastIp: ip
             }
           }
-        ).catch((err) => console.error("lastSeenAt/lastIp update error:", err.message));
+        ).catch((err) =>
+          console.error("lastSeenAt/lastIp update error:", err.message)
+        );
 
         req.session._lastSeenWriteAt = nowMs;
       }
@@ -170,21 +173,52 @@ async function start() {
   app.use("/api/admin", adminRoutes);
 
   // Pretty URLs
-  app.get("/login", (_req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-  app.get("/register", (_req, res) => res.sendFile(path.join(__dirname, "public", "register.html")));
-  app.get("/account", (_req, res) => res.sendFile(path.join(__dirname, "public", "account.html")));
-  app.get("/mypage", (_req, res) => res.sendFile(path.join(__dirname, "public", "mypage.html")));
-  app.get("/chat", (_req, res) => res.sendFile(path.join(__dirname, "public", "chat.html")));
-  app.get("/people", (_req, res) => res.sendFile(path.join(__dirname, "public", "people.html")));
-  app.get("/groups", (_req, res) => res.sendFile(path.join(__dirname, "public", "groups.html")));
-  app.get("/group/:id", (_req, res) => res.sendFile(path.join(__dirname, "public", "group.html")));
-  app.get("/admin", (_req, res) => res.sendFile(path.join(__dirname, "public", "admin.html")));
-  app.get("/levels", (_req, res) => res.sendFile(path.join(__dirname, "public", "levels.html")));
+  app.get("/login", (_req, res) =>
+    res.sendFile(path.join(__dirname, "public", "login.html"))
+  );
+  app.get("/register", (_req, res) =>
+    res.sendFile(path.join(__dirname, "public", "register.html"))
+  );
+  app.get("/account", (_req, res) =>
+    res.sendFile(path.join(__dirname, "public", "account.html"))
+  );
+  app.get("/mypage", (_req, res) =>
+    res.sendFile(path.join(__dirname, "public", "mypage.html"))
+  );
+  app.get("/chat", (_req, res) =>
+    res.sendFile(path.join(__dirname, "public", "chat.html"))
+  );
+  app.get("/people", (_req, res) =>
+    res.sendFile(path.join(__dirname, "public", "people.html"))
+  );
+  app.get("/groups", (_req, res) =>
+    res.sendFile(path.join(__dirname, "public", "groups.html"))
+  );
+  app.get("/group/:id", (_req, res) =>
+    res.sendFile(path.join(__dirname, "public", "group.html"))
+  );
+  app.get("/admin", (_req, res) =>
+    res.sendFile(path.join(__dirname, "public", "admin.html"))
+  );
+  app.get("/levels", (_req, res) =>
+    res.sendFile(path.join(__dirname, "public", "levels.html"))
+  );
   app.get("/level/:num", (req, res) => {
     const n = Number(req.params.num);
-    if (!Number.isInteger(n) || n < 1 || n > 10) return res.status(404).send("Not found");
+    if (!Number.isInteger(n) || n < 1 || n > 10)
+      return res.status(404).send("Not found");
     return res.sendFile(path.join(__dirname, "public", `level${n}.html`));
   });
+
+  // NEW: Feature shop pages
+  app.get("/shop", (_req, res) =>
+    res.sendFile(path.join(__dirname, "public", "shop.html"))
+  );
+  app.get("/how-to-get-coins", (_req, res) =>
+    res.sendFile(
+      path.join(__dirname, "public", "how-to-get-coins.html")
+    )
+  );
 
   // redirects from old .html urls (optional convenience)
   app.get("/levels.html", (_req, res) => res.redirect(301, "/levels"));
@@ -195,7 +229,9 @@ async function start() {
   app.get("/chat.html", (_req, res) => res.redirect(301, "/chat"));
   app.get("/account.html", (_req, res) => res.redirect(301, "/account"));
 
-  app.listen(PORT, () => console.log("Server running on http://localhost:" + PORT));
+  app.listen(PORT, () =>
+    console.log("Server running on http://localhost:" + PORT)
+  );
 }
 
 start().catch((err) => {
