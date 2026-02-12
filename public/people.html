@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>People • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+</head>
+<body>
+  <div class="center-box">
+    <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
+      <h2 style="margin:0;">People</h2>
+      <div class="row gap">
+        <a href="/">Terminal</a>
+        <a href="/mypage">My Page</a>
+        <a href="/groups">Groups</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row gap" style="margin-bottom:10px;">
+        <input id="q" placeholder="Search usernames..." style="flex:1;">
+        <button id="searchBtn">Search</button>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Level</th>
+            <th>Status</th>
+            <th>DM</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div id="msg" class="dim-text" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+  if(!me.loggedIn){ location.href="/login"; return; }
+
+  const q = document.getElementById("q");
+  const btn = document.getElementById("searchBtn");
+  const rows = document.getElementById("rows");
+  const msg = document.getElementById("msg");
+
+  function badge(role){
+    const cls = role === "admin" ? "admin" : (role === "mod" ? "mod" : "user");
+    return `<span class="badge ${cls}">${role}</span>`;
+  }
+
+  async function load(){
+    rows.innerHTML = "";
+    msg.textContent = "Loading...";
+    const res = await ZeroPoint.api.json("/api/people?q=" + encodeURIComponent(q.value.trim()), { method:"GET" });
+    if(res.error){ msg.textContent = res.error; return; }
+    const users = res.users || [];
+    if(!users.length){ msg.textContent = "No users found."; return; }
+    msg.textContent = "";
+
+    users.forEach(u => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${ZeroPoint.escapeHtml(u.username)}</td>
+        <td>${badge(u.role)}</td>
+        <td>${u.level}</td>
+        <td class="dim-text">${ZeroPoint.escapeHtml(u.statusMessage || "")}</td>
+        <td><a href="/chat?with=${encodeURIComponent(u.username)}">Chat</a></td>
+      `;
+      rows.appendChild(tr);
+    });
+  }
+
+  btn.onclick = load;
+  q.addEventListener("keydown", e => { if(e.key === "Enter") load(); });
+
+  await load();
+})();
+</script>
+</body>
+</html>

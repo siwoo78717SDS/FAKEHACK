@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Chat • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+  <style>
+    #log { height: 320px; overflow:auto; border:1px solid var(--border); border-radius: 10px; padding: 10px; background:#0b1220; }
+    .m { margin-bottom: 8px; }
+    .meta { font-size: 12px; color: var(--dim); }
+    img { max-width: 220px; max-height: 220px; border-radius: 8px; border:1px solid var(--border); margin-top:4px; }
+    .coins { color: var(--warn); font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="center-box">
+    <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
+      <h2 style="margin:0;">DM Chat</h2>
+      <div class="row gap">
+        <a href="/people">People</a>
+        <a href="/">Terminal</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="dim-text">Chatting with: <b id="with"></b></div>
+      <div class="dim-text">Your coins: <span id="myCoins"></span> • Level: <span id="myLevel"></span></div>
+      <hr>
+
+      <div id="log"></div>
+
+      <div style="margin-top:10px;">
+        <textarea id="text" rows="3" placeholder="Message..." style="width:100%;"></textarea>
+        <div class="row gap" style="margin-top:8px;">
+          <input type="file" id="file" accept="image/*" style="flex:1;">
+          <button id="uploadBtn">Upload Image</button>
+          <input id="coinsToSend" placeholder="coins" style="width:110px;">
+          <button id="sendBtn">Send</button>
+        </div>
+        <div id="msg" class="dim-text" style="margin-top:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+  if(!me.loggedIn){ location.href="/login"; return; }
+  const coins = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+
+  const withUser = new URLSearchParams(location.search).get("with");
+  if(!withUser){ location.href="/people"; return; }
+
+  document.getElementById("with").textContent = withUser;
+  document.getElementById("myCoins").textContent = coins.coins;
+  document.getElementById("myLevel").textContent = coins.level;
+
+  const log = document.getElementById("log");
+  const text = document.getElementById("text");
+  const file = document.getElementById("file");
+  const uploadBtn = document.getElementById("uploadBtn");
+  const coinsToSend = document.getElementById("coinsToSend");
+  const sendBtn = document.getElementById("sendBtn");
+  const msg = document.getElementById("msg");
+
+  let currentImageUrl = "";
+
+  function addMessage(m){
+    const div = document.createElement("div");
+    div.className = "m";
+    const when = new Date(m.createdAt).toLocaleString();
+    div.innerHTML = `
+      <div class="meta">${ZeroPoint.escapeHtml(m.fromUsername)} → ${ZeroPoint.escapeHtml(m.toUsername)} • ${when}</div>
+      <div>${ZeroPoint.escapeHtml(m.text || "").replace(/\n/g,"<br>")}</div>
+      ${m.imageUrl ? `<img src="${m.imageUrl}" alt="img">` : ""}
+      ${m.coinsSent ? `<div class="coins">Coins sent: ${m.coinsSent}</div>` : ""}
+    `;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function load(){
+    log.innerHTML = "";
+    const res = await ZeroPoint.api.json("/api/chat/history?with=" + encodeURIComponent(withUser), { method:"GET" });
+    if(res.error){ msg.textContent = res.error; return; }
+    (res.messages || []).forEach(addMessage);
+  }
+
+  uploadBtn.onclick = async () => {
+    const f = file.files && file.files[0];
+    if(!f){ alert("Pick an image first"); return; }
+    uploadBtn.disabled = true;
+    msg.textContent = "Uploading...";
+    const fd = new FormData();
+    fd.append("file", f);
+    try{
+      const r = await fetch("/api/upload/chat-image", { method:"POST", body: fd, credentials:"include" });
+      const data = await r.json();
+      if(!r.ok || data.error) throw new Error(data.error || "Upload failed");
+      currentImageUrl = data.url;
+      msg.textContent = "Image ready ✔";
+    }catch(e){
+      console.error(e);
+      msg.textContent = "";
+      alert(e.message || "Upload failed");
+    }finally{
+      uploadBtn.disabled = false;
+    }
+  };
+
+  sendBtn.onclick = async () => {
+    sendBtn.disabled = true;
+    msg.textContent = "";
+    const res = await ZeroPoint.api.json("/api/chat/send", {
+      method:"POST",
+      body:{
+        toUsername: withUser,
+        text: text.value,
+        imageUrl: currentImageUrl,
+        coinsToSend: coinsToSend.value ? Number(coinsToSend.value) : 0
+      }
+    });
+    sendBtn.disabled = false;
+    if(res.error){ msg.textContent = res.error; return; }
+    addMessage(res.message);
+    text.value = "";
+    file.value = "";
+    coinsToSend.value = "";
+    currentImageUrl = "";
+    if(res.coins !== undefined) document.getElementById("myCoins").textContent = res.coins;
+  };
+
+  await load();
+
+  if(coins.level < 2){
+    uploadBtn.disabled = true;
+    file.disabled = true;
+  }
+})();
+</script>
+</body>
+</html>

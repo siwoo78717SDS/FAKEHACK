@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Levels • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+</head>
+<body>
+  <div class="center-box">
+    <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
+      <h2 style="margin:0;">Levels</h2>
+      <div class="row gap">
+        <a href="/">Terminal</a>
+        <a href="/mypage">My Page</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="dim-text" id="info">Loading...</div>
+      <hr>
+      <div>
+        <div><b>Level 2:</b> unlock chat images</div>
+        <div class="dim-text">Cost: 100 coins (from Level 1)</div>
+        <a href="/level/2">Go to Level 2 page</a>
+      </div>
+      <hr>
+      <div>
+        <div><b>Level 3:</b> unlock terminal customization + group creation eligibility (still requires mod/admin)</div>
+        <div class="dim-text">Cost: +100 coins (from Level 2)</div>
+        <a href="/level/3">Go to Level 3 page</a>
+      </div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+  if(!me.loggedIn){ location.href="/login"; return; }
+  const c = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+  document.getElementById("info").textContent = `You are Level ${c.level} with ${c.coins} coins.`;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,707 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Admin • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+  <style>
+    .tabbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .tab { padding:8px 10px; border:1px solid var(--border); border-radius:10px; cursor:pointer; background:#0b1220; }
+    .tab.active { border-color: var(--accent); }
+    .panel { display:none; }
+    .panel.active { display:block; }
+    .mini { font-size: 12px; }
+    textarea { width:100%; }
+    .scroll { max-height: 300px; overflow:auto; border:1px solid var(--border); border-radius: 10px; padding: 8px; background:#0b1220; }
+
+    .k { color:#9aa4b2; font-size:12px; }
+    .v { color:#e5e7eb; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .badge { font-size: 11px; padding:2px 6px; border:1px solid var(--border); border-radius: 999px; }
+    .badge.admin { border-color: #e11d48; color:#fecdd3; }
+    .muted { color:#9aa4b2; }
+    .danger-btn {
+      background:#7f1d1d;
+      color:#fecaca;
+      border:1px solid #b91c1c;
+      border-radius:8px;
+      padding:4px 8px;
+      cursor:pointer;
+      font-size:11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="center-box">
+    <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
+      <h2 style="margin:0;">Admin Panel</h2>
+      <div class="row gap">
+        <a href="/">Terminal</a>
+        <a href="/people">People</a>
+        <a href="/groups">Groups</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="who" class="dim-text"></div>
+      <hr>
+
+      <div class="tabbar">
+        <div class="tab active" data-tab="users">Users</div>
+        <div class="tab" data-tab="bugs">Bug Reports</div>
+        <div class="tab" data-tab="ann">Announcements</div>
+        <div class="tab" data-tab="tx">Transactions</div>
+        <div class="tab" data-tab="audit">Audit Logs</div>
+      </div>
+
+      <!-- USERS -->
+      <div class="panel active" id="tab-users">
+        <div class="row gap" style="margin-bottom:8px;">
+          <input id="userSearch" placeholder="search username..." style="flex:1;">
+          <button id="refreshUsers">Refresh</button>
+        </div>
+
+        <div id="usersMsg" class="dim-text" style="margin-top:8px;"></div>
+
+        <div style="overflow:auto; margin-top:8px;">
+          <table class="table" id="usersTable">
+            <thead>
+              <tr>
+                <th>username</th>
+                <th>role</th>
+                <th>level</th>
+                <th>AP</th>
+                <th>coins</th>
+                <th>status</th>
+                <th>last online</th>
+                <th>ip</th>
+                <th>chat ban</th>
+                <th>coins ban</th>
+                <th>adjust coins</th>
+                <th>set role</th>
+                <th>set level</th>
+                <th>set bans</th>
+                <th>profile</th>
+                <th>delete</th> <!-- NEW -->
+              </tr>
+            </thead>
+            <tbody id="usersRows"></tbody>
+          </table>
+        </div>
+
+        <hr>
+
+        <div style="font-weight:600; margin-bottom:6px;">User Profile Database</div>
+        <div class="grid2">
+          <div class="scroll" id="profileBox">
+            <div class="dim-text">Click “Profile” on a user to view details here.</div>
+          </div>
+          <div class="scroll" id="profileTxBox">
+            <div class="dim-text">Coin history will appear here.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BUGS -->
+      <div class="panel" id="tab-bugs">
+        <div class="row gap" style="margin-bottom:8px;">
+          <select id="bugFilter">
+            <option value="">All</option>
+            <option value="open">Open</option>
+            <option value="in-progress">In Progress</option>
+            <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
+          </select>
+          <button id="refreshBugs">Refresh</button>
+          <span id="bugsMsg" class="dim-text"></span>
+        </div>
+        <div class="row gap" style="align-items:flex-start;">
+          <div class="scroll" style="flex:1;" id="bugList"></div>
+          <div style="flex:1;">
+            <div id="bugDetail" class="scroll" style="display:none;"></div>
+            <div id="bugActions" style="display:none; margin-top:8px;">
+              <select id="bugStatus">
+                <option value="open">Open</option>
+                <option value="in-progress">In Progress</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+              </select>
+              <button id="saveBugStatus">Save status</button>
+              <textarea id="bugReply" rows="3" placeholder="Reply as admin." style="margin-top:8px;"></textarea>
+              <button id="sendBugReply">Send reply</button>
+              <div id="bugActionMsg" class="dim-text" style="margin-top:6px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANNOUNCEMENTS -->
+      <div class="panel" id="tab-ann">
+        <div style="font-weight:600; margin-bottom:6px;">Create announcement</div>
+        <input id="annTitle" placeholder="Title" style="width:100%; margin-bottom:6px;">
+        <textarea id="annBody" rows="4" placeholder="Body"></textarea>
+        <div class="row gap" style="margin-top:8px;">
+          <button id="postAnn">Post</button>
+          <span id="annMsg" class="dim-text"></span>
+        </div>
+        <hr>
+        <div style="font-weight:600; margin-bottom:6px;">Latest announcements</div>
+        <div class="scroll" id="annList"></div>
+      </div>
+
+      <!-- TRANSACTIONS -->
+      <div class="panel" id="tab-tx">
+        <div class="row gap">
+          <input id="txUser" placeholder="filter by username (optional)" style="flex:1;">
+          <button id="refreshTx">Refresh</button>
+          <span id="txMsg" class="dim-text"></span>
+        </div>
+        <div class="scroll" id="txList" style="margin-top:8px;"></div>
+      </div>
+
+      <!-- AUDIT -->
+      <div class="panel" id="tab-audit">
+        <button id="refreshAudit">Refresh</button>
+        <div class="scroll" id="auditList" style="margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+  if(!me.loggedIn){ location.href="/login"; return; }
+  if(me.user.role !== "admin"){ location.href="/"; return; }
+
+  document.getElementById("who").textContent = `Logged in as ${me.user.username} (admin)`;
+
+  // tabs
+  document.querySelectorAll(".tab").forEach(t => {
+    t.onclick = () => {
+      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+      t.classList.add("active");
+      document.getElementById("tab-" + t.dataset.tab).classList.add("active");
+    };
+  });
+
+  // USERS
+  const refreshUsers = document.getElementById("refreshUsers");
+  const usersRows = document.getElementById("usersRows");
+  const usersMsg = document.getElementById("usersMsg");
+  const userSearch = document.getElementById("userSearch");
+
+  const profileBox = document.getElementById("profileBox");
+  const profileTxBox = document.getElementById("profileTxBox");
+
+  let cachedUsers = [];
+
+  function fmtDate(x){
+    if(!x) return "—";
+    try { return new Date(x).toLocaleString(); } catch { return "—"; }
+  }
+
+  function renderProfile(user){
+    const fullName = user.fullName || user.name || "—";
+    const status = user.statusMessage || user.statusMsg || user.status || "";
+
+    const lastSeenAt = user.lastSeenAt || user.lastOnlineAt || user.lastOnline || null;
+    const lastIp = user.lastIp || user.ip || user.lastLoginIp || "";
+
+    const ap = user.achievementPoints ?? user.ap ?? 0;
+
+    const unlocks = user.unlocks || {};
+    const stats = user.stats || {};
+
+    profileBox.innerHTML = `
+      <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+        <div>
+          <div style="font-weight:700; font-size:16px;">
+            ${ZeroPoint.escapeHtml(user.username || "")}
+          </div>
+          <div class="k">full name</div>
+          <div class="v">${ZeroPoint.escapeHtml(fullName)}</div>
+
+          <div class="k" style="margin-top:8px;">status</div>
+          <div class="v">${ZeroPoint.escapeHtml(status || "—")}</div>
+        </div>
+
+        <div style="text-align:right;">
+          <button id="openTxTabBtn">Open in Transactions tab</button>
+          <br>
+          <!-- NEW: Full-ban button -->
+          <button id="fullBanBtn" class="danger-btn" style="margin-top:6px;">Full Ban (IP + user)</button>
+          <div id="fullBanMsg" class="dim-text mini" style="margin-top:4px;"></div>
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="grid2">
+        <div>
+          <div class="k">role</div><div class="v">${ZeroPoint.escapeHtml(user.role || "")}</div>
+          <div class="k" style="margin-top:6px;">level</div><div class="v">${user.level ?? "—"}</div>
+          <div class="k" style="margin-top:6px;">coins</div><div class="v">${user.coins ?? "—"}</div>
+          <div class="k" style="margin-top:6px;">AP</div><div class="v">${ap}</div>
+          <div class="k" style="margin-top:6px;">deleted</div><div class="v">${user.isDeleted ? "YES" : "no"}</div>
+        </div>
+        <div>
+          <div class="k">created</div><div class="v">${fmtDate(user.createdAt)}</div>
+          <div class="k" style="margin-top:6px;">last online</div><div class="v">${fmtDate(lastSeenAt)}</div>
+          <div class="k" style="margin-top:6px;">ip</div><div class="v">${ZeroPoint.escapeHtml(lastIp || "—")}</div>
+        </div>
+      </div>
+
+      <hr>
+
+      <div style="font-weight:600; margin-bottom:6px;">Bans</div>
+      <div class="row gap" style="align-items:center; margin-bottom:6px;">
+        <label class="dim-text mini">
+          <input type="checkbox" id="pfChatBan" ${user.bans?.isBannedFromChat ? "checked" : ""}> chat ban
+        </label>
+        <label class="dim-text mini">
+          <input type="checkbox" id="pfCoinsBan" ${user.bans?.isBannedFromCoins ? "checked" : ""}> coins ban
+        </label>
+      </div>
+      <input id="pfBanReason" placeholder="ban reason (optional)" value="${ZeroPoint.escapeHtml(user.bans?.reason || "")}" style="width:100%; margin-bottom:6px;">
+      <button id="pfSaveBansBtn">Save bans</button>
+      <span id="pfBanMsg" class="dim-text mini" style="margin-left:8px;"></span>
+
+      <hr>
+
+      <div style="font-weight:600; margin-bottom:6px;">Unlocks</div>
+      <div class="dim-text mini">${ZeroPoint.escapeHtml(JSON.stringify(unlocks, null, 2))}</div>
+
+      <div style="font-weight:600; margin-top:10px; margin-bottom:6px;">Stats</div>
+      <div class="dim-text mini">${ZeroPoint.escapeHtml(JSON.stringify(stats, null, 2))}</div>
+    `;
+
+    // button: open transactions tab prefilled
+    const openTxTabBtn = document.getElementById("openTxTabBtn");
+    openTxTabBtn.onclick = () => {
+      document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+      document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+      document.querySelector('.tab[data-tab="tx"]').classList.add("active");
+      document.getElementById("tab-tx").classList.add("active");
+
+      document.getElementById("txUser").value = user.username || "";
+      loadTx();
+    };
+
+    // bans save (profile panel)
+    const pfSaveBansBtn = document.getElementById("pfSaveBansBtn");
+    pfSaveBansBtn.onclick = async () => {
+      const chatBan = document.getElementById("pfChatBan").checked;
+      const coinsBan = document.getElementById("pfCoinsBan").checked;
+      const reason = document.getElementById("pfBanReason").value;
+
+      const msgEl = document.getElementById("pfBanMsg");
+      msgEl.textContent = "Saving...";
+
+      const res = await ZeroPoint.api.json("/api/coins/set-bans", {
+        method:"POST",
+        body: { username: user.username, chatBan, coinsBan, reason }
+      });
+
+      if(res.error){ msgEl.textContent = res.error; return; }
+      msgEl.textContent = "Saved ✔";
+      await loadUsers();
+      await openUserProfile(user.username);
+    };
+
+    // NEW: full-ban button logic
+    const fullBanBtn = document.getElementById("fullBanBtn");
+    const fullBanMsg = document.getElementById("fullBanMsg");
+    fullBanBtn.onclick = async () => {
+      if (!confirm(`Full ban ${user.username}? This will ban account + IP.`)) return;
+      fullBanMsg.textContent = "Banning...";
+      const res = await ZeroPoint.api.json("/api/admin/users/full-ban", {
+        method:"POST",
+        body: { username: user.username, reason: "Full ban from admin panel" }
+      });
+      if(res.error){ fullBanMsg.textContent = res.error; return; }
+      fullBanMsg.textContent = "Full ban applied ✔";
+      await loadUsers();
+      await openUserProfile(user.username);
+    };
+  }
+
+  async function loadUserCoinHistory(username){
+    profileTxBox.innerHTML = '<div class="dim-text">Loading coin history...</div>';
+    const q = "?username=" + encodeURIComponent(username);
+    const res = await ZeroPoint.api.json("/api/transactions/admin/all" + q, { method:"GET" });
+    if(res.error){
+      profileTxBox.innerHTML = '<div class="dim-text">' + ZeroPoint.escapeHtml(res.error) + '</div>';
+      return;
+    }
+    const tx = res.transactions || [];
+    profileTxBox.innerHTML = `
+      <div style="font-weight:600; margin-bottom:6px;">Coin history (${tx.length})</div>
+      ${tx.length ? tx.map(t => {
+        const when = new Date(t.createdAt).toLocaleString();
+        return `<div class="dim-text mini">[${when}] ${ZeroPoint.escapeHtml(t.type)} ${ZeroPoint.escapeHtml(t.fromUsername||"")} → ${ZeroPoint.escapeHtml(t.toUsername||"")} amount=${t.amount} ${ZeroPoint.escapeHtml(t.description||"")}</div>`;
+      }).join("") : '<div class="dim-text">(none)</div>'}
+    `;
+  }
+
+  async function openUserProfile(username){
+    const basic = cachedUsers.find(x => x.username === username) || { username };
+    renderProfile(basic);
+    await loadUserCoinHistory(username);
+
+    // optional richer profile endpoint
+    const res = await ZeroPoint.api.json(
+      "/api/admin/users/profile?username=" + encodeURIComponent(username),
+      { method:"GET" }
+    );
+    if(!res.error && res.user){
+      renderProfile(res.user);
+    }
+  }
+
+  function applyUserSearch(){
+    const q = userSearch.value.trim().toLowerCase();
+    const filtered = q
+      ? cachedUsers.filter(u => String(u.username||"").toLowerCase().includes(q))
+      : cachedUsers;
+    renderUsersTable(filtered);
+  }
+
+  function renderUsersTable(users){
+    usersRows.innerHTML = "";
+    users.forEach(u => {
+      const status = u.statusMessage || u.statusMsg || "";
+      const ap = u.achievementPoints ?? 0;
+
+      const lastSeenAt = u.lastSeenAt || u.lastOnlineAt || null;
+      const lastIp = u.lastIp || u.ip || "";
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${ZeroPoint.escapeHtml(u.username)}</td>
+        <td>${ZeroPoint.escapeHtml(u.role)}</td>
+        <td>${u.level}</td>
+        <td>${ap}</td>
+        <td>${u.coins}</td>
+        <td>${ZeroPoint.escapeHtml(status)}</td>
+        <td>${lastSeenAt ? fmtDate(lastSeenAt) : "—"}</td>
+        <td>${lastIp ? ZeroPoint.escapeHtml(lastIp) : "—"}</td>
+        <td>${u.bans?.isBannedFromChat ? "Yes" : "No"}</td>
+        <td>${u.bans?.isBannedFromCoins ? "Yes" : "No"}</td>
+
+        <td>
+          <div class="row gap">
+            <input data-user="${u.username}" class="delta" placeholder="+/-" style="width:90px;">
+            <button data-user="${u.username}" class="applyDelta">Apply</button>
+          </div>
+        </td>
+
+        <td>
+          <div class="row gap">
+            <select data-user="${u.username}" class="roleSel">
+              <option value="user" ${u.role==="user"?"selected":""}>user</option>
+              <option value="mod" ${u.role==="mod"?"selected":""}>mod</option>
+              <option value="admin" ${u.role==="admin"?"selected":""}>admin</option>
+            </select>
+            <button data-user="${u.username}" class="saveRole">Save</button>
+          </div>
+        </td>
+
+        <td>
+          <div class="row gap">
+            <input data-user="${u.username}" class="lvlInp" placeholder="1-10" style="width:70px;" value="${u.level}">
+            <button data-user="${u.username}" class="saveLvl">Save</button>
+          </div>
+        </td>
+
+        <td>
+          <div class="row gap" style="align-items:center;">
+            <label class="dim-text mini"><input type="checkbox" class="chatBanChk" data-user="${u.username}" ${u.bans?.isBannedFromChat ? "checked":""}> chat</label>
+            <label class="dim-text mini"><input type="checkbox" class="coinsBanChk" data-user="${u.username}" ${u.bans?.isBannedFromCoins ? "checked":""}> coins</label>
+            <button data-user="${u.username}" class="saveBansBtn">Save</button>
+          </div>
+        </td>
+
+        <td>
+          <button data-user="${u.username}" class="openProfileBtn">Profile</button>
+        </td>
+
+        <td>
+          <!-- NEW: delete button -->
+          <button data-user="${u.username}" class="deleteUserBtn danger-btn">Delete</button>
+        </td>
+      `;
+      usersRows.appendChild(tr);
+    });
+
+    // adjust coins
+    usersRows.querySelectorAll(".applyDelta").forEach(btn => {
+      btn.onclick = async () => {
+        const user = btn.dataset.user;
+        const inp = usersRows.querySelector(`.delta[data-user="${user}"]`);
+        const delta = Number(inp.value);
+        if(!Number.isFinite(delta)) return alert("Invalid delta");
+
+        const res2 = await ZeroPoint.api.json("/api/coins/adjust", {
+          method:"POST",
+          body:{ username:user, delta }
+        });
+        if(res2.error) return alert(res2.error);
+        await loadUsers();
+      };
+    });
+
+    // set role
+    usersRows.querySelectorAll(".saveRole").forEach(btn => {
+      btn.onclick = async () => {
+        const user = btn.dataset.user;
+        const sel = usersRows.querySelector(`.roleSel[data-user="${user}"]`);
+        const res2 = await ZeroPoint.api.json("/api/coins/set-role", {
+          method:"POST",
+          body:{ username:user, role: sel.value }
+        });
+        if(res2.error) return alert(res2.error);
+        await loadUsers();
+      };
+    });
+
+    // set level
+    usersRows.querySelectorAll(".saveLvl").forEach(btn => {
+      btn.onclick = async () => {
+        const user = btn.dataset.user;
+        const inp = usersRows.querySelector(`.lvlInp[data-user="${user}"]`);
+        const lvl = Number(inp.value);
+        if(!Number.isFinite(lvl)) return alert("Invalid level");
+        const res2 = await ZeroPoint.api.json("/api/coins/set-level", {
+          method:"POST",
+          body:{ username:user, level: lvl }
+        });
+        if(res2.error) return alert(res2.error);
+        await loadUsers();
+      };
+    });
+
+    // set bans
+    usersRows.querySelectorAll(".saveBansBtn").forEach(btn => {
+      btn.onclick = async () => {
+        const user = btn.dataset.user;
+        const chatBan = usersRows.querySelector(`.chatBanChk[data-user="${user}"]`).checked;
+        const coinsBan = usersRows.querySelector(`.coinsBanChk[data-user="${user}"]`).checked;
+
+        const res2 = await ZeroPoint.api.json("/api/coins/set-bans", {
+          method:"POST",
+          body:{ username:user, chatBan, coinsBan }
+        });
+        if(res2.error) return alert(res2.error);
+        await loadUsers();
+      };
+    });
+
+    // open profile
+    usersRows.querySelectorAll(".openProfileBtn").forEach(btn => {
+      btn.onclick = async () => {
+        const user = btn.dataset.user;
+        await openUserProfile(user);
+      };
+    });
+
+    // NEW: delete user
+    usersRows.querySelectorAll(".deleteUserBtn").forEach(btn => {
+      btn.onclick = async () => {
+        const user = btn.dataset.user;
+        if(!confirm(`Delete account "${user}"? This cannot be easily undone.`)) return;
+        const res2 = await ZeroPoint.api.json("/api/admin/users/delete", {
+          method:"POST",
+          body:{ username:user }
+        });
+        if(res2.error) return alert(res2.error);
+        alert("User deleted (soft delete) ✔");
+        await loadUsers();
+      };
+    });
+  }
+
+  async function loadUsers(){
+    usersMsg.textContent = "Loading...";
+    usersRows.innerHTML = "";
+    const res = await ZeroPoint.api.json("/api/coins/users", { method:"GET" });
+    if(res.error){ usersMsg.textContent = res.error; return; }
+
+    cachedUsers = (res.users || []);
+    usersMsg.textContent = cachedUsers.length ? "" : "(none)";
+    applyUserSearch();
+  }
+
+  refreshUsers.onclick = loadUsers;
+  userSearch.oninput = applyUserSearch;
+
+  // BUGS
+  const bugFilter = document.getElementById("bugFilter");
+  const refreshBugs = document.getElementById("refreshBugs");
+  const bugsMsg = document.getElementById("bugsMsg");
+  const bugList = document.getElementById("bugList");
+  const bugDetail = document.getElementById("bugDetail");
+  const bugActions = document.getElementById("bugActions");
+  const bugStatus = document.getElementById("bugStatus");
+  const saveBugStatus = document.getElementById("saveBugStatus");
+  const bugReply = document.getElementById("bugReply");
+  const sendBugReply = document.getElementById("sendBugReply");
+  const bugActionMsg = document.getElementById("bugActionMsg");
+  let currentBugId = null;
+
+  function renderBugThread(bug){
+    bugDetail.innerHTML = `
+      <div><b>${ZeroPoint.escapeHtml(bug.title)}</b> <span class="dim-text">(${bug.status})</span></div>
+      <div class="dim-text mini">by ${ZeroPoint.escapeHtml(bug.creatorUsername)} • ${new Date(bug.createdAt).toLocaleString()}</div>
+      ${bug.screenshotUrl ? `<div style="margin-top:8px;"><img src="${bug.screenshotUrl}" style="max-width:100%; border:1px solid var(--border); border-radius:8px;"></div>` : ""}
+      <hr>
+      ${(bug.messages||[]).map(m => {
+        const when = new Date(m.createdAt).toLocaleString();
+        const tag = m.roleAtTime === "admin" ? ' <span class="badge admin">ADMIN</span>' : "";
+        return `<div style="margin-bottom:10px;">
+          <div class="dim-text mini">${ZeroPoint.escapeHtml(m.fromUsername)}${tag} • ${when}</div>
+          <div>${ZeroPoint.escapeHtml(m.text).replace(/\n/g,"<br>")}</div>
+        </div>`;
+      }).join("")}
+    `;
+  }
+
+  async function openBug(id){
+    currentBugId = id;
+    const res = await ZeroPoint.api.json("/api/bugs/" + id, { method:"GET" });
+    if(res.error){ alert(res.error); return; }
+    const bug = res.bug;
+    bugDetail.style.display = "block";
+    bugActions.style.display = "block";
+    bugStatus.value = bug.status;
+    renderBugThread(bug);
+  }
+
+  async function loadBugs(){
+    bugsMsg.textContent = "Loading...";
+    bugList.innerHTML = "";
+    bugDetail.style.display = "none";
+    bugActions.style.display = "none";
+    currentBugId = null;
+
+    const q = bugFilter.value ? ("?status=" + encodeURIComponent(bugFilter.value)) : "";
+    const res = await ZeroPoint.api.json("/api/bugs/admin/all" + q, { method:"GET" });
+    if(res.error){ bugsMsg.textContent = res.error; return; }
+
+    const bugs = res.bugs || [];
+    bugsMsg.textContent = bugs.length ? "" : "No bug reports found.";
+    bugs.forEach(b => {
+      const div = document.createElement("div");
+      div.style.padding = "8px";
+      div.style.borderBottom = "1px solid var(--border)";
+      div.style.cursor = "pointer";
+      div.innerHTML = `<div><b>[${b.status}]</b> ${ZeroPoint.escapeHtml(b.title)}</div><div class="dim-text mini">${ZeroPoint.escapeHtml(b.creatorUsername)} • ${new Date(b.createdAt).toLocaleString()}</div>`;
+      div.onclick = () => openBug(b._id);
+      bugList.appendChild(div);
+    });
+  }
+  refreshBugs.onclick = loadBugs;
+  bugFilter.onchange = loadBugs;
+
+  saveBugStatus.onclick = async () => {
+    if(!currentBugId) return;
+    bugActionMsg.textContent = "Saving...";
+    const res = await ZeroPoint.api.json("/api/bugs/admin/" + currentBugId + "/status", { method:"POST", body:{ status: bugStatus.value } });
+    if(res.error){ bugActionMsg.textContent = res.error; return; }
+    bugActionMsg.textContent = "Saved ✔";
+    renderBugThread(res.bug);
+    await loadBugs();
+  };
+
+  sendBugReply.onclick = async () => {
+    if(!currentBugId) return;
+    const text = bugReply.value.trim();
+    if(!text) return;
+    bugActionMsg.textContent = "Sending...";
+    const res = await ZeroPoint.api.json("/api/bugs/" + currentBugId + "/reply", { method:"POST", body:{ text } });
+    if(res.error){ bugActionMsg.textContent = res.error; return; }
+    bugReply.value = "";
+    bugActionMsg.textContent = "Sent ✔";
+    renderBugThread(res.bug);
+    await loadBugs();
+  };
+
+  // ANNOUNCEMENTS
+  const annTitle = document.getElementById("annTitle");
+  const annBody = document.getElementById("annBody");
+  const postAnn = document.getElementById("postAnn");
+  const annMsg = document.getElementById("annMsg");
+  const annList = document.getElementById("annList");
+
+  async function loadAnns(){
+    const res = await ZeroPoint.api.json("/api/announcements", { method:"GET" });
+    const a = res.announcements || [];
+    annList.innerHTML = a.length ? a.map(x => {
+      const when = new Date(x.createdAt).toLocaleString();
+      return `<div style="margin-bottom:10px;">
+        <div><b>${ZeroPoint.escapeHtml(x.title)}</b></div>
+        <div class="dim-text mini">by ${ZeroPoint.escapeHtml(x.createdByUsername)} • ${when}</div>
+        <div class="dim-text">${ZeroPoint.escapeHtml(x.body).replace(/\n/g,"<br>")}</div>
+      </div>`;
+    }).join("") : '<div class="dim-text">(none)</div>';
+  }
+
+  postAnn.onclick = async () => {
+    postAnn.disabled = true;
+    annMsg.textContent = "Posting...";
+    const res = await ZeroPoint.api.json("/api/announcements", { method:"POST", body:{ title: annTitle.value.trim(), body: annBody.value } });
+    postAnn.disabled = false;
+    if(res.error){ annMsg.textContent = res.error; return; }
+    annMsg.textContent = "Posted ✔";
+    annTitle.value = "";
+    annBody.value = "";
+    await loadAnns();
+  };
+
+  // TRANSACTIONS
+  const txUser = document.getElementById("txUser");
+  const refreshTx = document.getElementById("refreshTx");
+  const txMsg = document.getElementById("txMsg");
+  const txList = document.getElementById("txList");
+
+  async function loadTx(){
+    txMsg.textContent = "Loading...";
+    const u = txUser.value.trim();
+    const q = u ? ("?username=" + encodeURIComponent(u)) : "";
+    const res = await ZeroPoint.api.json("/api/transactions/admin/all" + q, { method:"GET" });
+    if(res.error){ txMsg.textContent = res.error; return; }
+    const tx = res.transactions || [];
+    txMsg.textContent = tx.length ? "" : "(none)";
+    txList.innerHTML = tx.map(t => {
+      const when = new Date(t.createdAt).toLocaleString();
+      return `<div class="dim-text mini">[${when}] ${ZeroPoint.escapeHtml(t.type)} ${ZeroPoint.escapeHtml(t.fromUsername||"")} -> ${ZeroPoint.escapeHtml(t.toUsername||"")} amount=${t.amount} ${ZeroPoint.escapeHtml(t.description||"")}</div>`;
+    }).join("");
+  }
+  refreshTx.onclick = loadTx;
+
+  // AUDIT
+  const refreshAudit = document.getElementById("refreshAudit");
+  const auditList = document.getElementById("auditList");
+
+  async function loadAudit(){
+    auditList.innerHTML = '<div class="dim-text">Loading...</div>';
+    const res = await ZeroPoint.api.json("/api/admin/audit", { method:"GET" });
+    if(res.error){ auditList.innerHTML = '<div class="dim-text">' + ZeroPoint.escapeHtml(res.error) + '</div>'; return; }
+    const logs = res.logs || [];
+    auditList.innerHTML = logs.length ? logs.map(l => {
+      const when = new Date(l.createdAt).toLocaleString();
+      return `<div class="dim-text mini">[${when}] ${ZeroPoint.escapeHtml(l.actorUsername)} (${ZeroPoint.escapeHtml(l.actorRole)}) ${ZeroPoint.escapeHtml(l.action)} target=${ZeroPoint.escapeHtml(l.targetUsername||"")} ip=${ZeroPoint.escapeHtml(l.ip||"")}</div>`;
+    }).join("") : '<div class="dim-text">(none)</div>';
+  }
+  refreshAudit.onclick = loadAudit;
+
+  // Initial loads
+  await loadUsers();
+  await loadBugs();
+  await loadAnns();
+})();
+</script>
+</body>
+</html>

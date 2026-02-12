@@ -1,0 +1,198 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ZeroPoint Terminal</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+  <style>
+    #terminal {
+      height: 420px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      line-height: 1.4;
+    }
+    #cmd { width: 100%; }
+    .prompt { color: #60a5fa; }
+    .ok { color: #4ade80; }
+    .warn { color: #facc15; }
+    .bad { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div class="center-box">
+    <div class="card">
+      <div class="row gap" style="justify-content:space-between;">
+        <div>
+          <b>ZeroPoint</b> <span class="dim-text">terminal UI</span>
+          <span id="meTag" class="dim-text"></span>
+        </div>
+        <div class="row gap">
+          <a href="/mypage">My Page</a>
+          <a href="/people">People</a>
+          <a href="/groups">Groups</a>
+          <a href="/levels">Levels</a>
+          <a href="/admin" id="adminLink" style="display:none;">Admin</a>
+          <button id="logoutBtn">Logout</button>
+        </div>
+      </div>
+      <hr>
+      <div id="terminal"></div>
+      <div class="row gap" style="margin-top:10px;">
+        <span class="prompt">$</span>
+        <input id="cmd" placeholder="Type a command. Try: help" autocomplete="off">
+      </div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const term = document.getElementById("terminal");
+  const cmd = document.getElementById("cmd");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const meTag = document.getElementById("meTag");
+  const adminLink = document.getElementById("adminLink");
+
+  const me = await ZeroPoint.api.json("/api/auth/me", { method: "GET" });
+  if (!me.loggedIn) { location.href="/login"; return; }
+  const coinsInfo = await ZeroPoint.api.json("/api/coins/me", { method: "GET" });
+
+  meTag.textContent = `(${me.user.username} • ${me.user.role} • L${coinsInfo.level} • ${coinsInfo.coins} coins)`;
+  if (me.user.role === "admin") adminLink.style.display = "inline";
+
+  let theme = me.user.theme || "classic";
+  applyTheme(theme);
+
+  function print(line, cls) {
+    const div = document.createElement("div");
+    div.textContent = line;
+    if (cls) div.className = cls;
+    term.appendChild(div);
+    term.scrollTop = term.scrollHeight;
+  }
+
+  function applyTheme(t) {
+    theme = t;
+    if (t === "green") document.documentElement.style.setProperty("--accent", "#4ade80");
+    else if (t === "amber") document.documentElement.style.setProperty("--accent", "#facc15");
+    else document.documentElement.style.setProperty("--accent", "#60a5fa");
+  }
+
+  async function run(line) {
+    const parts = line.trim().split(" ");
+    const c = (parts[0] || "").toLowerCase();
+    const args = parts.slice(1);
+
+    if (!c) return;
+
+    if (c === "help") {
+      print("Commands:", "ok");
+      print("  me                     - show your info");
+      print("  announcements          - show latest announcements");
+      print("  transactions           - show your coin transaction history");
+      print("  achievements           - show your achievements");
+      print("  chat <username>        - open DM chat page with someone");
+      print("  people                 - open /people");
+      print("  groups                 - open /groups");
+      print("  mypage                 - open /mypage");
+      print("  levels                 - open /levels");
+      print("Level 3 commands:");
+      print("  settheme classic|green|amber");
+      print("  setstatus <text>");
+      return;
+    }
+
+    if (c === "me") {
+      const me2 = await ZeroPoint.api.json("/api/auth/me", { method: "GET" });
+      const coins2 = await ZeroPoint.api.json("/api/coins/me", { method: "GET" });
+      print(`username: ${me2.user.username}`);
+      print(`role: ${me2.user.role}`);
+      print(`level: ${coins2.level}`);
+      print(`coins: ${coins2.coins}`);
+      print(`status: ${me2.user.statusMessage || ""}`);
+      print(`theme: ${me2.user.theme || "classic"}`);
+      return;
+    }
+
+    if (c === "announcements") {
+      const a = await ZeroPoint.api.json("/api/announcements", { method: "GET" });
+      (a.announcements || []).slice(0, 10).forEach(item => {
+        print(`- ${item.title} (by ${item.createdByUsername})`);
+      });
+      if (!(a.announcements || []).length) print("(no announcements yet)", "warn");
+      return;
+    }
+
+    if (c === "transactions") {
+      const t = await ZeroPoint.api.json("/api/transactions/me", { method: "GET" });
+      const tx = t.transactions || [];
+      if (!tx.length) return print("(no transactions yet)", "warn");
+      tx.slice(0, 10).forEach(x => {
+        const when = new Date(x.createdAt).toLocaleString();
+        print(`[${when}] ${x.type} ${x.fromUsername || ""} -> ${x.toUsername || ""} amount=${x.amount} ${x.description || ""}`);
+      });
+      return;
+    }
+
+    if (c === "achievements") {
+      const ach = await ZeroPoint.api.json("/api/achievements/me", { method: "GET" });
+      const list = ach.achievements || [];
+      if (!list.length) return print("(no achievements yet)", "warn");
+      list.forEach(a => print(`- ${a.title}`));
+      return;
+    }
+
+    if (c === "chat") {
+      const u = args[0];
+      if (!u) return print("Usage: chat <username>", "bad");
+      location.href = "/chat?with=" + encodeURIComponent(u);
+      return;
+    }
+
+    if (c === "people") { location.href="/people"; return; }
+    if (c === "groups") { location.href="/groups"; return; }
+    if (c === "mypage") { location.href="/mypage"; return; }
+    if (c === "levels") { location.href="/levels"; return; }
+
+    if (c === "settheme") {
+      const t = args[0];
+      const res = await ZeroPoint.api.json("/api/profile/theme", { method: "POST", body: { theme: t } });
+      if (res.error) return print(res.error, "bad");
+      applyTheme(res.theme);
+      print("Theme updated.", "ok");
+      return;
+    }
+
+    if (c === "setstatus") {
+      const text = args.join(" ");
+      const res = await ZeroPoint.api.json("/api/profile/status", { method: "POST", body: { statusMessage: text } });
+      if (res.error) return print(res.error, "bad");
+      print("Status updated.", "ok");
+      return;
+    }
+
+    print("Unknown command. Try: help", "bad");
+  }
+
+  print("Welcome to ZeroPoint Terminal.", "ok");
+  print("Type: help");
+
+  cmd.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      const line = cmd.value;
+      cmd.value = "";
+      print("$ " + line, "dim-text");
+      run(line);
+    }
+  });
+
+  logoutBtn.onclick = async () => {
+    logoutBtn.disabled = true;
+    await ZeroPoint.logout();
+    location.href="/login";
+  };
+})();
+</script>
+</body>
+</html>

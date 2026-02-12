@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Register • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+</head>
+<body>
+  <div class="center-box">
+    <div class="card">
+      <h2 style="margin-top:0;">Register</h2>
+      <div class="dim-text" style="margin-bottom:12px;">Already have an account? <a href="/login">Login</a></div>
+      <input id="fullName" placeholder="full name" style="width:100%; margin-bottom:8px;">
+      <input id="username" placeholder="username (3-20, letters/numbers/_)" style="width:100%; margin-bottom:8px;">
+      <input id="password" placeholder="password (min 6)" type="password" style="width:100%; margin-bottom:8px;">
+      <button id="regBtn">Create account</button>
+      <div id="msg" class="dim-text" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const me = await ZeroPoint.api.json("/api/auth/me",{method:"GET"});
+  if(me.loggedIn){ location.href="/"; return; }
+
+  const fullName = document.getElementById("fullName");
+  const username = document.getElementById("username");
+  const password = document.getElementById("password");
+  const btn = document.getElementById("regBtn");
+  const msg = document.getElementById("msg");
+
+  btn.onclick = async () => {
+    btn.disabled = true;
+    msg.textContent = "";
+    const res = await ZeroPoint.api.json("/api/auth/register",{
+      method:"POST",
+      body:{ fullName: fullName.value.trim(), username: username.value.trim(), password: password.value }
+    });
+    if(res.error){ msg.textContent = res.error; btn.disabled=false; return; }
+    location.href="/";
+  };
+})();
+</script>
+</body>
+</html>

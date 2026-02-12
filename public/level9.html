@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Level 9 • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+</head>
+<body>
+  <div class="center-box">
+    <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
+      <h2 style="margin:0;">Level 9</h2>
+      <div class="row gap">
+        <a href="/levels">Levels</a>
+        <a href="/">Terminal</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="state" class="dim-text">Loading...</div>
+      <hr>
+      <div>Future level 9 content goes here.</div>
+      <hr>
+      <button id="buyBtn" style="display:none;">Buy / unlock Level 9</button>
+      <div id="msg" class="dim-text" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+  if(!me.loggedIn){ location.href="/login"; return; }
+  const info = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+  const state = document.getElementById("state");
+  const buyBtn = document.getElementById("buyBtn");
+  const msg = document.getElementById("msg");
+
+  state.textContent = `You are Level ${info.level} with ${info.coins} coins.`;
+  if(info.level < 9) buyBtn.style.display = "inline-block";
+  else msg.textContent = "Already unlocked ✅";
+
+  buyBtn.onclick = async () => {
+    buyBtn.disabled = true;
+    msg.textContent = "Processing...";
+    const res = await ZeroPoint.api.json("/api/coins/level-up", {
+      method:"POST",
+      body: { targetLevel: 9 }
+    });
+    buyBtn.disabled = false;
+    if(res.error){ msg.textContent = res.error; return; }
+    msg.textContent = `Unlocked! You are now Level ${res.level}.`;
+    buyBtn.style.display = "none";
+  };
+})();
+</script>
+</body>
+</html>

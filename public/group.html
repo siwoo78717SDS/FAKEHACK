@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Group • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+  <style>
+    #log { height: 320px; overflow:auto; border:1px solid var(--border); border-radius: 10px; padding: 10px; background:#0b1220; }
+    .m { margin-bottom: 8px; }
+    .meta { font-size: 12px; color: var(--dim); }
+    img { max-width: 220px; max-height: 220px; border-radius: 8px; border:1px solid var(--border); margin-top:4px; }
+  </style>
+</head>
+<body>
+  <div class="center-box">
+    <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
+      <div>
+        <h2 style="margin:0;" id="title">Group</h2>
+        <div class="dim-text" id="desc"></div>
+      </div>
+      <div class="row gap">
+        <a href="/groups">Groups</a>
+        <a href="/">Terminal</a>
+      </div>
+    </div>
+
+    <div class="card" id="joinBox" style="display:none; margin-bottom:12px;">
+      <div class="dim-text" id="joinInfo"></div>
+      <button id="joinBtn">Join Group</button>
+    </div>
+
+    <div class="card" id="inviteBox" style="display:none; margin-bottom:12px;">
+      <div style="font-weight:600; margin-bottom:6px;">Invite user (private groups only)</div>
+      <div class="row gap">
+        <input id="inviteUser" placeholder="username to invite" style="flex:1;">
+        <button id="inviteBtn">Invite</button>
+      </div>
+      <div id="inviteMsg" class="dim-text" style="margin-top:6px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
+        <div class="dim-text">Members: <span id="members"></span></div>
+        <button id="leaveBtn" style="display:none;">Leave</button>
+      </div>
+
+      <div id="log"></div>
+
+      <div style="margin-top:10px;">
+        <textarea id="text" rows="3" placeholder="Message..." style="width:100%;"></textarea>
+        <div class="row gap" style="margin-top:8px;">
+          <input type="file" id="file" accept="image/*" style="flex:1;">
+          <button id="uploadBtn">Upload Image</button>
+          <button id="sendBtn">Send</button>
+        </div>
+        <div id="msg" class="dim-text" style="margin-top:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+  if(!me.loggedIn){ location.href="/login"; return; }
+  const coins = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+
+  const groupId = ZeroPoint.getPathParam(0); // /group/:id
+  const title = document.getElementById("title");
+  const desc = document.getElementById("desc");
+  const members = document.getElementById("members");
+  const log = document.getElementById("log");
+  const text = document.getElementById("text");
+  const file = document.getElementById("file");
+  const uploadBtn = document.getElementById("uploadBtn");
+  const sendBtn = document.getElementById("sendBtn");
+  const msg = document.getElementById("msg");
+
+  const joinBox = document.getElementById("joinBox");
+  const joinInfo = document.getElementById("joinInfo");
+  const joinBtn = document.getElementById("joinBtn");
+
+  const inviteBox = document.getElementById("inviteBox");
+  const inviteUser = document.getElementById("inviteUser");
+  const inviteBtn = document.getElementById("inviteBtn");
+  const inviteMsg = document.getElementById("inviteMsg");
+
+  const leaveBtn = document.getElementById("leaveBtn");
+
+  let currentImageUrl = "";
+
+  function addMessage(m){
+    const div = document.createElement("div");
+    div.className = "m";
+    const when = new Date(m.createdAt).toLocaleString();
+    div.innerHTML = `
+      <div class="meta">${ZeroPoint.escapeHtml(m.fromUsername)} • ${when}</div>
+      <div>${ZeroPoint.escapeHtml(m.text || "").replace(/\n/g,"<br>")}</div>
+      ${m.imageUrl ? `<img src="${m.imageUrl}" alt="img">` : ""}
+    `;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function loadInfo(){
+    const info = await ZeroPoint.api.json("/api/groups/" + groupId, { method:"GET" });
+    if(info.error){
+      title.textContent = "Group";
+      msg.textContent = info.error;
+      sendBtn.disabled = true;
+      uploadBtn.disabled = true;
+      return;
+    }
+    const g = info.group;
+    title.textContent = g.name;
+    desc.textContent = g.description || "";
+    members.textContent = (g.members || []).map(m => m.username).join(", ");
+
+    // join/leave visibility
+    if(!info.viewer.isMember){
+      joinBox.style.display = "block";
+      joinInfo.textContent = g.isPublic ? "This is a public group. Anyone can join." : "This is a private group. You need an invite.";
+    } else {
+      joinBox.style.display = "none";
+      // owner can't leave
+      if(!info.viewer.isOwner) leaveBtn.style.display = "inline-block";
+    }
+
+    // invite box: only owner/admin, and only for private groups
+    if((info.viewer.isOwner || info.viewer.isAdmin) && !g.isPublic){
+      inviteBox.style.display = "block";
+    } else {
+      inviteBox.style.display = "none";
+    }
+  }
+
+  async function loadHistory(){
+    log.innerHTML = "";
+    const res = await ZeroPoint.api.json("/api/groups/" + groupId + "/history", { method:"GET" });
+    if(res.error){
+      msg.textContent = res.error;
+      return;
+    }
+    (res.messages || []).forEach(addMessage);
+  }
+
+  joinBtn.onclick = async () => {
+    joinBtn.disabled = true;
+    const res = await ZeroPoint.api.json("/api/groups/" + groupId + "/join", { method:"POST" });
+    joinBtn.disabled = false;
+    if(res.error){ alert(res.error); return; }
+    await loadInfo();
+    await loadHistory();
+  };
+
+  leaveBtn.onclick = async () => {
+    if(!confirm("Leave this group?")) return;
+    leaveBtn.disabled = true;
+    const res = await ZeroPoint.api.json("/api/groups/" + groupId + "/leave", { method:"POST" });
+    leaveBtn.disabled = false;
+    if(res.error){ alert(res.error); return; }
+    location.href = "/groups";
+  };
+
+  inviteBtn.onclick = async () => {
+    inviteBtn.disabled = true;
+    inviteMsg.textContent = "Inviting...";
+    const res = await ZeroPoint.api.json("/api/groups/" + groupId + "/invite", { method:"POST", body: { username: inviteUser.value.trim() } });
+    inviteBtn.disabled = false;
+    if(res.error){ inviteMsg.textContent = res.error; return; }
+    inviteMsg.textContent = "Invited ✔";
+    inviteUser.value = "";
+  };
+
+  uploadBtn.onclick = async () => {
+    const f = file.files && file.files[0];
+    if(!f){ alert("Pick an image first"); return; }
+    uploadBtn.disabled = true;
+    msg.textContent = "Uploading...";
+    const fd = new FormData();
+    fd.append("file", f);
+    try{
+      const r = await fetch("/api/upload/chat-image", { method:"POST", body: fd, credentials:"include" });
+      const data = await r.json();
+      if(!r.ok || data.error) throw new Error(data.error || "Upload failed");
+      currentImageUrl = data.url;
+      msg.textContent = "Image ready ✔";
+    }catch(e){
+      console.error(e);
+      msg.textContent = "";
+      alert(e.message || "Upload failed");
+    }finally{
+      uploadBtn.disabled = false;
+    }
+  };
+
+  sendBtn.onclick = async () => {
+    sendBtn.disabled = true;
+    msg.textContent = "";
+    const res = await ZeroPoint.api.json("/api/groups/" + groupId + "/send", {
+      method:"POST",
+      body: { text: text.value, imageUrl: currentImageUrl }
+    });
+    sendBtn.disabled = false;
+    if(res.error){ msg.textContent = res.error; return; }
+    addMessage(res.message);
+    text.value = "";
+    file.value = "";
+    currentImageUrl = "";
+  };
+
+  await loadInfo();
+  await loadHistory();
+
+  // If level < 2, images won't work (server enforces anyway)
+  if(coins.level < 2){
+    uploadBtn.disabled = true;
+    file.disabled = true;
+  }
+})();
+</script>
+</body>
+</html>

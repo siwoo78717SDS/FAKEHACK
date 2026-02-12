@@ -1,0 +1,227 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>My Page • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+  <style>
+    .section-title { font-weight:600; text-transform:uppercase; letter-spacing:.08em; font-size:.9rem; margin-bottom:6px; }
+    .split { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+    .listBox { max-height: 240px; overflow:auto; border:1px solid var(--border); border-radius: 8px; padding: 8px; background:#0b1220; }
+    .bug-item { padding: 6px; border-bottom:1px solid var(--border); cursor:pointer; }
+    .bug-item:last-child { border-bottom:none; }
+    .thread { max-height: 220px; overflow:auto; border:1px solid var(--border); border-radius: 8px; padding: 8px; background:#0b1220; }
+    .msgmeta { font-size: 12px; color: var(--dim); }
+  </style>
+</head>
+<body>
+  <div class="center-box">
+    <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
+      <h2 style="margin:0;">My Page</h2>
+      <div class="row gap">
+        <a href="/">Terminal</a>
+        <a href="/account">Account</a>
+        <a href="/people">People</a>
+        <a href="/groups">Groups</a>
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="card">
+        <div class="section-title">Profile</div>
+        <div><b>Username:</b> <span id="u"></span></div>
+        <div><b>Role:</b> <span id="r"></span></div>
+        <div><b>Level:</b> <span id="lvl"></span></div>
+        <div><b>Coins:</b> <span id="coins"></span></div>
+        <div><b>Status:</b> <span id="status" class="dim-text"></span></div>
+        <hr>
+        <div class="section-title">Achievements</div>
+        <div class="listBox"><ul id="ach" style="margin:0; padding-left: 18px;"></ul></div>
+        <hr>
+        <div class="section-title">Transactions (last 50)</div>
+        <div class="listBox" id="tx"></div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:12px;">
+          <div class="section-title">Report a bug (to admins)</div>
+          <input id="bugTitle" placeholder="Title" style="width:100%; margin-bottom:6px;">
+          <textarea id="bugDesc" rows="4" placeholder="What did you do? What happened? What should happen?" style="width:100%; margin-bottom:6px;"></textarea>
+          <div class="row gap" style="margin-bottom:6px;">
+            <input id="bugFile" type="file" accept="image/*" style="flex:1;">
+            <button id="uploadBtn">Upload Screenshot</button>
+          </div>
+          <div id="uploadStatus" class="dim-text" style="margin-bottom:6px;"></div>
+          <button id="submitBugBtn">Submit Bug Report</button>
+        </div>
+
+        <div class="card">
+          <div class="section-title">My Bug Reports</div>
+          <div class="listBox" id="bugList"></div>
+
+          <div id="bugDetail" style="display:none; margin-top:10px;">
+            <hr>
+            <div><b id="bdTitle"></b> <span class="dim-text">(<span id="bdStatus"></span>)</span></div>
+            <div class="dim-text">Created: <span id="bdCreated"></span></div>
+            <div id="bdShot" style="margin-top:6px;"></div>
+            <div class="thread" id="bdThread" style="margin-top:6px;"></div>
+            <textarea id="replyText" rows="2" placeholder="Reply..." style="width:100%; margin-top:6px;"></textarea>
+            <button id="replyBtn" style="margin-top:6px;">Send Reply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+  if(!me.loggedIn){ location.href="/login"; return; }
+
+  const coins = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+  document.getElementById("u").textContent = me.user.username;
+  document.getElementById("r").textContent = me.user.role;
+  document.getElementById("lvl").textContent = coins.level;
+  document.getElementById("coins").textContent = coins.coins;
+  document.getElementById("status").textContent = me.user.statusMessage || "";
+
+  const ach = await ZeroPoint.api.json("/api/achievements/me", { method:"GET" });
+  const achUl = document.getElementById("ach");
+  const list = ach.achievements || [];
+  achUl.innerHTML = list.length ? list.map(a => `<li>${ZeroPoint.escapeHtml(a.title)} <span class="dim-text">(${new Date(a.earnedAt).toLocaleString()})</span></li>`).join("") : "<li>(none)</li>";
+
+  const txResp = await ZeroPoint.api.json("/api/transactions/me", { method:"GET" });
+  const txBox = document.getElementById("tx");
+  const tx = txResp.transactions || [];
+  txBox.innerHTML = tx.length ? tx.map(t => {
+    const when = new Date(t.createdAt).toLocaleString();
+    return `<div class="dim-text">[${when}] ${ZeroPoint.escapeHtml(t.type)} ${ZeroPoint.escapeHtml(t.fromUsername||"")} -> ${ZeroPoint.escapeHtml(t.toUsername||"")} amount=${t.amount}</div>`;
+  }).join("") : '<div class="dim-text">(none)</div>';
+
+  // bug report
+  const bugTitle = document.getElementById("bugTitle");
+  const bugDesc = document.getElementById("bugDesc");
+  const bugFile = document.getElementById("bugFile");
+  const uploadBtn = document.getElementById("uploadBtn");
+  const uploadStatus = document.getElementById("uploadStatus");
+  const submitBugBtn = document.getElementById("submitBugBtn");
+
+  const bugListEl = document.getElementById("bugList");
+  const bugDetail = document.getElementById("bugDetail");
+  const bdTitle = document.getElementById("bdTitle");
+  const bdStatus = document.getElementById("bdStatus");
+  const bdCreated = document.getElementById("bdCreated");
+  const bdShot = document.getElementById("bdShot");
+  const bdThread = document.getElementById("bdThread");
+  const replyText = document.getElementById("replyText");
+  const replyBtn = document.getElementById("replyBtn");
+
+  let screenshotUrl = "";
+  let currentBugId = null;
+
+  async function loadMyBugs(){
+    const res = await ZeroPoint.api.json("/api/bugs/mine", { method:"GET" });
+    const bugs = res.bugs || [];
+    if(!bugs.length){
+      bugListEl.innerHTML = '<div class="dim-text">(no bug reports yet)</div>';
+      bugDetail.style.display = "none";
+      return;
+    }
+    bugListEl.innerHTML = "";
+    bugs.forEach(b => {
+      const div = document.createElement("div");
+      div.className = "bug-item";
+      div.innerHTML = `<div><b>[${b.status}]</b> ${ZeroPoint.escapeHtml(b.title)}</div><div class="dim-text">${new Date(b.createdAt).toLocaleString()}</div>`;
+      div.onclick = () => openBug(b._id);
+      bugListEl.appendChild(div);
+    });
+  }
+
+  function renderThread(bug){
+    bdThread.innerHTML = "";
+    (bug.messages||[]).forEach(m => {
+      const when = new Date(m.createdAt).toLocaleString();
+      const tag = m.roleAtTime === "admin" ? " <span class='badge admin'>ADMIN</span>" : "";
+      const box = document.createElement("div");
+      box.style.marginBottom = "8px";
+      box.innerHTML = `<div class="msgmeta">${ZeroPoint.escapeHtml(m.fromUsername)}${tag} • ${when}</div><div>${ZeroPoint.escapeHtml(m.text).replace(/\n/g,"<br>")}</div>`;
+      bdThread.appendChild(box);
+    });
+    bdThread.scrollTop = bdThread.scrollHeight;
+  }
+
+  async function openBug(id){
+    currentBugId = id;
+    const res = await ZeroPoint.api.json("/api/bugs/" + id, { method:"GET" });
+    if(res.error){ alert(res.error); return; }
+    const bug = res.bug;
+    bugDetail.style.display = "block";
+    bdTitle.textContent = bug.title;
+    bdStatus.textContent = bug.status;
+    bdCreated.textContent = new Date(bug.createdAt).toLocaleString();
+    bdShot.innerHTML = bug.screenshotUrl ? `<img src="${bug.screenshotUrl}" style="max-width:100%; border:1px solid var(--border); border-radius:8px;">` : "";
+    renderThread(bug);
+  }
+
+  uploadBtn.onclick = async () => {
+    const file = bugFile.files && bugFile.files[0];
+    if(!file){ alert("Pick an image first"); return; }
+    uploadBtn.disabled = true;
+    uploadStatus.textContent = "Uploading...";
+    const fd = new FormData();
+    fd.append("file", file);
+    try{
+      const r = await fetch("/api/upload/bug-screenshot", { method:"POST", body: fd, credentials:"include" });
+      const data = await r.json();
+      if(!r.ok || data.error) throw new Error(data.error||"Upload failed");
+      screenshotUrl = data.url;
+      uploadStatus.textContent = "Uploaded ✔";
+    } catch(e){
+      console.error(e);
+      uploadStatus.textContent = "Upload failed";
+      alert("Upload failed");
+    } finally {
+      uploadBtn.disabled = false;
+    }
+  };
+
+  submitBugBtn.onclick = async () => {
+    const title = bugTitle.value.trim();
+    const desc = bugDesc.value.trim();
+    if(!title || !desc){ alert("Please fill title + description"); return; }
+    submitBugBtn.disabled = true;
+    const res = await ZeroPoint.api.json("/api/bugs", {
+      method:"POST",
+      body: { title, description: desc, screenshotUrl }
+    });
+    submitBugBtn.disabled = false;
+    if(res.error){ alert(res.error); return; }
+    alert("Bug report submitted. Thanks!");
+    bugTitle.value = "";
+    bugDesc.value = "";
+    bugFile.value = "";
+    uploadStatus.textContent = "";
+    screenshotUrl = "";
+    await loadMyBugs();
+  };
+
+  replyBtn.onclick = async () => {
+    if(!currentBugId){ alert("Select a bug report first"); return; }
+    const text = replyText.value.trim();
+    if(!text) return;
+    replyBtn.disabled = true;
+    const res = await ZeroPoint.api.json("/api/bugs/" + currentBugId + "/reply", { method:"POST", body: { text } });
+    replyBtn.disabled = false;
+    if(res.error){ alert(res.error); return; }
+    replyText.value = "";
+    renderThread(res.bug);
+  };
+
+  await loadMyBugs();
+})();
+</script>
+</body>
+</html>

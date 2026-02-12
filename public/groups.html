@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Groups • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+  <style>
+    .groupCard { padding: 10px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; background:#0b1220; }
+  </style>
+</head>
+<body>
+  <div class="center-box">
+    <div class="row gap" style="justify-content:space-between; margin-bottom:10px;">
+      <h2 style="margin:0;">Groups</h2>
+      <div class="row gap">
+        <a href="/">Terminal</a>
+        <a href="/people">People</a>
+        <a href="/mypage">My Page</a>
+      </div>
+    </div>
+
+    <div class="card" id="createBox" style="display:none; margin-bottom:12px;">
+      <div style="font-weight:600; margin-bottom:6px;">Create a group (requires Level 3 + Mod/Admin)</div>
+      <input id="gName" placeholder="Group name" style="width:100%; margin-bottom:6px;">
+      <input id="gDesc" placeholder="Description (optional)" style="width:100%; margin-bottom:6px;">
+      <label class="dim-text"><input type="checkbox" id="gPublic" checked> Public group (anyone can join)</label>
+      <div style="margin-top:8px;">
+        <button id="createBtn">Create</button>
+        <span id="createMsg" class="dim-text"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row gap" style="margin-bottom:10px;">
+        <input id="q" placeholder="Search public groups..." style="flex:1;">
+        <button id="searchBtn">Search</button>
+      </div>
+      <div id="list"></div>
+      <div id="msg" class="dim-text"></div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+  if(!me.loggedIn){ location.href="/login"; return; }
+
+  const coins = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+
+  const createBox = document.getElementById("createBox");
+  const gName = document.getElementById("gName");
+  const gDesc = document.getElementById("gDesc");
+  const gPublic = document.getElementById("gPublic");
+  const createBtn = document.getElementById("createBtn");
+  const createMsg = document.getElementById("createMsg");
+
+  if (coins.level >= 3 && (me.user.role === "mod" || me.user.role === "admin")) {
+    createBox.style.display = "block";
+  }
+
+  createBtn.onclick = async () => {
+    createBtn.disabled = true;
+    createMsg.textContent = "Creating...";
+    const res = await ZeroPoint.api.json("/api/groups/create", {
+      method:"POST",
+      body: { name: gName.value.trim(), description: gDesc.value.trim(), isPublic: gPublic.checked }
+    });
+    createBtn.disabled = false;
+    if(res.error){ createMsg.textContent = res.error; return; }
+    createMsg.textContent = "Created ✔";
+    location.href = "/group/" + res.group._id;
+  };
+
+  const q = document.getElementById("q");
+  const searchBtn = document.getElementById("searchBtn");
+  const list = document.getElementById("list");
+  const msg = document.getElementById("msg");
+
+  async function load(){
+    list.innerHTML = "";
+    msg.textContent = "Loading...";
+    const res = await ZeroPoint.api.json("/api/groups/public?q=" + encodeURIComponent(q.value.trim()), { method:"GET" });
+    if(res.error){ msg.textContent = res.error; return; }
+    const groups = res.groups || [];
+    if(!groups.length){ msg.textContent = "No public groups found."; return; }
+    msg.textContent = "";
+    groups.forEach(g => {
+      const div = document.createElement("div");
+      div.className = "groupCard";
+      div.innerHTML = `
+        <div style="font-weight:600;">${ZeroPoint.escapeHtml(g.name)}</div>
+        <div class="dim-text">${ZeroPoint.escapeHtml(g.description || "")}</div>
+        <div class="dim-text">owner: ${ZeroPoint.escapeHtml(g.ownerUsername)} • members: ${g.memberCount}</div>
+        <div style="margin-top:6px;"><a href="/group/${g._id}">Open</a></div>
+      `;
+      list.appendChild(div);
+    });
+  }
+
+  searchBtn.onclick = load;
+  q.addEventListener("keydown", e => { if(e.key==="Enter") load(); });
+
+  await load();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Account • ZeroPoint</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/shared.js"></script>
+</head>
+<body>
+  <div class="center-box">
+    <div class="card">
+      <div class="row gap" style="justify-content:space-between;">
+        <h2 style="margin:0;">Account</h2>
+        <div class="row gap">
+          <a href="/">Terminal</a>
+          <a href="/mypage">My Page</a>
+          <button id="logoutBtn">Logout</button>
+        </div>
+      </div>
+      <hr>
+      <div id="info" class="dim-text">Loading...</div>
+    </div>
+  </div>
+
+<script>
+(async function(){
+  const info = document.getElementById("info");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  const me = await ZeroPoint.api.json("/api/auth/me", { method:"GET" });
+  if(!me.loggedIn){ location.href="/login"; return; }
+  const coins = await ZeroPoint.api.json("/api/coins/me", { method:"GET" });
+
+  info.innerHTML = `
+    <div><b>username:</b> ${ZeroPoint.escapeHtml(me.user.username)}</div>
+    <div><b>fullName:</b> ${ZeroPoint.escapeHtml(me.user.fullName)}</div>
+    <div><b>role:</b> ${ZeroPoint.escapeHtml(me.user.role)}</div>
+    <div><b>level:</b> ${coins.level}</div>
+    <div><b>coins:</b> ${coins.coins}</div>
+    <div><b>chat banned:</b> ${coins.bans?.isBannedFromChat ? "Yes" : "No"}</div>
+    <div><b>coins banned:</b> ${coins.bans?.isBannedFromCoins ? "Yes" : "No"}</div>
+  `;
+
+  logoutBtn.onclick = async () => { await ZeroPoint.logout(); location.href="/login"; };
+})();
+</script>
+</body>
+</html>
